@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(python -m pytest tests/test_feature_extraction.py::TestFeatureExtraction::test_measurement_cost_estimation -v)",
+      "Bash(source venv/bin/activate)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(uncompyle6:*)",
+      "Bash(pytest:*)",
+      "Bash(python3:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

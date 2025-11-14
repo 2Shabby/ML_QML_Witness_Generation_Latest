@@ -6,9 +6,6 @@ import pytest
 import numpy as np
 from qiskit.quantum_info import DensityMatrix
 
-import sys
-sys.path.insert(0, '/home/user/ML_QML_Witness_Generation')
-
 from src.quantum_states.state_generation import (
     generate_random_density_matrix,
     generate_separable_state,
