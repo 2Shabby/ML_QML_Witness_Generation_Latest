@@ -623,6 +623,505 @@ This framework lays the groundwork for several high-impact research contribution
 
 ---
 
+## 10. IMPLEMENTATION ROADMAP: QISKIT + TENSORFLOW
+
+This section provides concrete technical guidance for implementing the framework using industry-standard tools: Qiskit for quantum operations and TensorFlow for classical machine learning.
+
+### 10.1. Architectural Philosophy
+
+**Qiskit-first for quantum, TensorFlow for classical ML**
+- Qiskit ecosystem covers quantum circuits, operators, algorithms
+- TensorFlow provides unified gradient framework for both classical and quantum
+- Interoperability: convert between Qiskit operators ↔ TensorFlow tensors
+
+### 10.2. Technology Stack Decisions
+
+#### Quantum Layer (Qiskit)
+- **qiskit** - Core quantum circuits and operators
+- **qiskit-machine-learning** - VQC, QSVC, QNN classes
+- **qiskit-aer** - High-performance simulation
+- **qiskit-ibm-runtime** - Real hardware execution
+- **qiskit-algorithms** - Optimizers (SPSA, COBYLA, Adam)
+
+#### Classical ML Layer (TensorFlow)
+- **tensorflow** - Neural networks and automatic differentiation
+- **tensorflow-quantum** (optional) - Hybrid quantum-classical models
+- **tf.keras** - High-level model building
+- **sklearn** - SVM only (TensorFlow doesn't have good SVM)
+
+#### Why this combo?
+- Qiskit has mature quantum ML tools purpose-built for this domain
+- TensorFlow's GradientTape works seamlessly with Qiskit
+- TensorFlow Quantum enables differentiable quantum circuits in TF graphs
+- Industry standard (IBM quantum + Google ML)
+
+### 10.3. Foundation with Qiskit Primitives
+
+#### Quantum State Operations
+Use Qiskit's built-in state handling:
+- `Statevector` and `DensityMatrix` classes (don't roll your own)
+- `quantum_info` module for partial trace, entropy, fidelity
+- `SparsePauliOp` for efficient witness operators
+
+**Design Pattern:**
+
+```
+Your code → Qiskit primitives → Your witness logic
+```
+
+**Critical: Qiskit's Operator Framework**
+- Store witnesses as `SparsePauliOp` (memory efficient)
+- Use `.to_matrix()` only when needed
+- Built-in methods: `.expectation()`, `.compose()`, `.adjoint()`
+
+#### Feature Extraction Strategy
+- Generate Pauli basis using `qiskit.quantum_info.pauli_basis()`
+- For n qubits: iterate over `PauliList`
+- Extract expectations via `Estimator` primitive (unified interface for sim/hardware)
+
+### 10.4. Classical ML with TensorFlow
+
+#### Neural Networks (MLP/KAN)
+
+**Use tf.keras.Sequential for MLPs:**
+- Input: feature vector (Pauli expectations)
+- Hidden layers: `Dense` with ReLU/tanh
+- Output: `Dense(1, activation='sigmoid')` for binary classification
+- Custom loss: include regularization for Hermiticity constraints
+
+**Witness Extraction from TensorFlow:**
+
+```python
+# 1. Train Keras model on features
+# 2. Use GradientTape to compute ∂f/∂features at decision boundary
+with tf.GradientTape() as tape:
+    tape.watch(boundary_features)
+    output = model(boundary_features)
+gradients = tape.gradient(output, boundary_features)
+
+# 3. Reconstruct operator: W = Σᵢ (∂f/∂xᵢ) Pᵢ
+witness = sum(gradients[i] * pauli_ops[i] for i in range(len(gradients)))
+
+# 4. Hermitianize: W = (W + W†)/2
+witness = (witness + witness.adjoint()) / 2
+```
+
+**KAN Implementation:**
+- Use TensorFlow's flexible functional API
+- Define custom layers with learnable splines
+- B-splines via `tf.numpy_function` or custom TF operations
+- Alternative: wrap existing PyTorch KAN in TF using `tf.numpy_function` (hacky but works)
+
+#### SVM (sklearn exception)
+Keep sklearn for SVM - TensorFlow doesn't have robust SVM
+- Use `sklearn.svm.SVC`
+- Convert features to numpy before training
+- Witness extraction via `model.coef_` as before
+
+### 10.5. Quantum ML with Qiskit Machine Learning
+
+#### Architecture: Use Built-in Qiskit ML Classes
+
+**VQC (Variational Quantum Classifier):**
+```python
+from qiskit_machine_learning.algorithms import VQC
+from qiskit.circuit.library import RealAmplitudes, ZZFeatureMap
+
+# Don't build from scratch - use Qiskit's VQC
+feature_map = ZZFeatureMap(n_qubits, reps=2)
+ansatz = RealAmplitudes(n_qubits, reps=3)
+vqc = VQC(
+    feature_map=feature_map,
+    ansatz=ansatz,
+    optimizer=COBYLA(maxiter=100),
+    callback=callback_function
+)
+```
+
+**QSVC (Quantum Support Vector Classifier):**
+```python
+from qiskit_machine_learning.algorithms import QSVC
+from qiskit_machine_learning.kernels import FidelityQuantumKernel
+
+# Quantum kernel automatically computed
+kernel = FidelityQuantumKernel(feature_map=ZZFeatureMap(n_qubits))
+qsvc = QSVC(quantum_kernel=kernel)
+```
+
+**QNN (Quantum Neural Network):**
+Use `EstimatorQNN` or `SamplerQNN` from qiskit-machine-learning:
+- `EstimatorQNN`: for regression/continuous outputs (entanglement measures)
+- `SamplerQNN`: for classification (probability distributions)
+- Both integrate with TensorFlow via connectors
+
+#### Hybrid Quantum-Classical with TensorFlow Quantum
+
+**Optional advanced integration:**
+- Convert Qiskit circuits to TFQ format
+- Build differentiable quantum layers in TensorFlow
+- End-to-end gradient flow: quantum circuit → measurement → TF loss
+- Useful for complex hybrid architectures
+
+**When to use TFQ vs pure Qiskit:**
+- **Pure Qiskit:** standard VQC, QSVC (simpler, more stable)
+- **TFQ:** custom loss functions involving quantum observables, quantum data augmentation
+
+### 10.6. Data Pipeline Integration
+
+#### Qiskit State Sampling
+Use Qiskit's built-in state generation:
+- `random_statevector()` for pure states
+- `random_density_matrix()` for mixed states
+- `Statevector.from_label()` for basis states
+
+#### TensorFlow Data Pipeline
+
+```
+Qiskit states → numpy → tf.data.Dataset → tf.keras model
+```
+
+**Pipeline pattern:**
+1. Generate states with Qiskit (numpy arrays)
+2. Extract features using Qiskit Estimator
+3. Create `tf.data.Dataset` with `.from_tensor_slices()`
+4. Use `.batch()`, `.shuffle()`, `.prefetch()` for efficiency
+5. Feed directly to `model.fit()`
+
+**Advantage:**
+- TensorFlow handles batching, shuffling, GPU transfer
+- Qiskit handles quantum-specific operations
+- Clean separation of concerns
+
+### 10.7. Training Loops
+
+#### Classical Models (TensorFlow)
+
+**Standard Keras training:**
+```python
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    loss='binary_crossentropy',
+    metrics=['accuracy', 'AUC']
+)
+
+history = model.fit(
+    train_dataset,
+    validation_data=val_dataset,
+    epochs=100,
+    callbacks=[
+        tf.keras.callbacks.EarlyStopping(patience=10),
+        tf.keras.callbacks.ModelCheckpoint('best_model.h5'),
+        tf.keras.callbacks.TensorBoard(log_dir='logs/')
+    ]
+)
+```
+
+**Custom training loop for witness constraints:**
+```python
+@tf.function
+def train_step(features, labels):
+    with tf.GradientTape() as tape:
+        predictions = model(features, training=True)
+        loss = loss_fn(labels, predictions)
+        # Add Hermiticity penalty
+        witness_op = extract_witness_from_model(model)
+        loss += hermiticity_penalty(witness_op)
+    gradients = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+```
+
+#### Quantum Models (Qiskit)
+
+**VQC training is automatic:**
+```python
+vqc.fit(X_train, y_train)  # Qiskit handles optimization internally
+```
+
+**For custom objectives:**
+- Use Qiskit's Optimizer interface (SPSA, COBYLA, L_BFGS_B)
+- Define custom loss via EstimatorQNN output
+- Qiskit computes gradients via parameter-shift rule
+
+### 10.8. Witness Extraction Patterns
+
+#### From TensorFlow Models
+
+**Gradient-based extraction:**
+```python
+# Find decision boundary (f(x) = 0.5)
+boundary_state = find_boundary_example()
+boundary_features = extract_features(boundary_state)
+
+with tf.GradientTape() as tape:
+    tape.watch(boundary_features)
+    output = model(boundary_features)
+
+gradients = tape.gradient(output, boundary_features)
+# gradients[i] = ∂f/∂Tr(Pᵢρ)
+
+# Reconstruct witness
+witness = sum(gradients[i] * pauli_ops[i] for i in range(len(gradients)))
+```
+
+**Layer weight extraction:**
+```python
+# For linear-like final layer
+final_layer = model.layers[-1]
+weights = final_layer.get_weights()[0]  # Shape: (n_features, 1)
+witness = reconstruct_from_weights(weights, pauli_basis)
+```
+
+#### From Qiskit Models
+
+**VQC witness:**
+```python
+# Optimal parameters define measurement basis
+optimal_params = vqc.optimal_point
+optimal_circuit = feature_map.compose(ansatz.assign_parameters(optimal_params))
+
+# Witness = expectation operator in this basis
+witness_op = SparsePauliOp.from_list([
+    ('ZIII', coeff[0]),
+    ('IZII', coeff[1]),
+    # ... computed from circuit structure
+])
+```
+
+**QSVC witness:**
+```python
+# Extract from support vectors in quantum feature space
+support_vectors = qsvc.support_vectors_
+dual_coefs = qsvc.dual_coef_
+# Witness in quantum kernel space (implicit)
+```
+
+### 10.9. Evaluation with Qiskit Primitives
+
+#### Witness Validation
+
+**Use Qiskit's expectation value computation:**
+```python
+from qiskit.primitives import Estimator
+
+estimator = Estimator()
+witness_op = SparsePauliOp(...)  # Your learned witness
+
+# Evaluate on test states
+test_states = [...]  # Qiskit DensityMatrix objects
+expectation_values = []
+
+for state in test_states:
+    job = estimator.run(state.to_statevector(), witness_op)
+    result = job.result()
+    expectation_values.append(result.values[0])
+```
+
+#### Metrics Computation
+
+**TensorFlow metrics tracking:**
+```python
+train_accuracy = tf.keras.metrics.BinaryAccuracy()
+val_auc = tf.keras.metrics.AUC()
+
+# Custom witness metrics
+class WitnessViolationRate(tf.keras.metrics.Metric):
+    def update_state(self, y_true, expectation_values):
+        # Count negative expectations for entangled class
+        ...
+```
+
+**Integration with TensorBoard:**
+```python
+# Log scalar metrics
+with train_summary_writer.as_default():
+    tf.summary.scalar('witness_violation_rate', violation_rate, step=epoch)
+    tf.summary.histogram('witness_eigenvalues', eigenvals, step=epoch)
+```
+
+### 10.10. Hardware Deployment
+
+#### Qiskit Runtime for Real Hardware
+
+**Transition from simulation:**
+```python
+from qiskit_ibm_runtime import QiskitRuntimeService, Session, Estimator
+
+service = QiskitRuntimeService(channel="ibm_quantum")
+backend = service.backend("ibm_brisbane")  # Real quantum computer
+
+with Session(service=service, backend=backend) as session:
+    estimator = Estimator(session=session)
+    # Use same code as simulation
+    job = estimator.run(circuits, observables, ...)
+```
+
+**Error mitigation built-in:**
+- Dynamical decoupling (automatic in Runtime)
+- Readout error mitigation
+- Zero-noise extrapolation
+- Twirled readout error extinction (TREX)
+
+#### Measurement Optimization
+
+**Use Qiskit's grouping algorithms:**
+```python
+from qiskit.quantum_info import SparsePauliOp
+
+witness_op = SparsePauliOp(...)  # Your witness
+grouped_ops = witness_op.group_commuting()  # Automatic grouping
+
+# Reduces shots needed dramatically
+```
+
+### 10.11. Advanced Features
+
+#### Hybrid ML+SDP with TensorFlow
+
+**Differentiable convex optimization:**
+```python
+import cvxpy as cp
+from cvxpylayers.tensorflow import CvxpyLayer
+
+# Define SDP as differentiable layer
+W = cp.Variable((dim, dim), hermitian=True)
+constraints = [W >> 0]  # Positive semidefinite
+objective = cp.Minimize(cp.trace(W @ target_state))
+
+problem = cp.Problem(objective, constraints)
+sdp_layer = CvxpyLayer(problem, parameters=[...], variables=[W])
+
+# Integrate into TensorFlow model
+class HybridModel(tf.keras.Model):
+    def call(self, inputs):
+        ml_features = self.neural_net(inputs)
+        optimized_witness = sdp_layer(ml_features)
+        return self.classifier(optimized_witness)
+```
+
+#### Active Learning for Boundary States
+
+**Use TensorFlow's uncertainty estimates:**
+```python
+# MC Dropout for uncertainty
+class MCDropoutModel(tf.keras.Model):
+    def call(self, inputs, training=False):
+        # Always use dropout even at inference
+        return self.model(inputs, training=True)
+
+# Query high-uncertainty states
+uncertainty = np.std([model(X_pool) for _ in range(100)], axis=0)
+query_idx = np.argsort(uncertainty)[-batch_size:]  # Most uncertain
+```
+
+### 10.12. Configuration & Experiment Management
+
+#### Hydra + TensorBoard
+
+**Config structure:**
+```yaml
+model:
+  type: "tensorflow_mlp"  # or "qiskit_vqc"
+  tensorflow_mlp:
+    layers: [128, 64, 32]
+    activation: "relu"
+    learning_rate: 0.001
+  qiskit_vqc:
+    feature_map: "ZZFeatureMap"
+    ansatz: "RealAmplitudes"
+    optimizer: "SPSA"
+    reps: 3
+```
+
+**Model factory pattern:**
+```python
+def create_model(cfg):
+    if cfg.model.type == "tensorflow_mlp":
+        return create_tf_model(cfg.model.tensorflow_mlp)
+    elif cfg.model.type == "qiskit_vqc":
+        return create_qiskit_vqc(cfg.model.qiskit_vqc)
+```
+
+### 10.13. Testing Strategy with Qiskit
+
+#### Unit Tests
+
+**Test Qiskit state operations:**
+```python
+def test_partial_transpose():
+    bell_state = Statevector.from_label('00') + Statevector.from_label('11')
+    bell_state = bell_state / np.sqrt(2)
+    dm = DensityMatrix(bell_state)
+
+    dm_pt = partial_transpose(dm, dims=[2, 2], axis=1)
+    assert has_negative_eigenvalue(dm_pt)  # Bell state is entangled
+```
+
+**Test TensorFlow witness extraction:**
+```python
+def test_witness_hermiticity():
+    model = create_trained_model()
+    witness_op = extract_witness(model, pauli_basis)
+
+    # Check Hermiticity
+    tf.debugging.assert_near(witness_op, tf.linalg.adjoint(witness_op))
+```
+
+#### Integration Tests
+
+**End-to-end with Qiskit simulator:**
+```python
+def test_qiskit_vqc_pipeline():
+    backend = AerSimulator()
+    vqc = create_vqc(backend=backend)
+    vqc.fit(X_train, y_train)
+    accuracy = vqc.score(X_test, y_test)
+    assert accuracy > 0.85
+```
+
+### 10.14. Performance Optimization
+
+#### TensorFlow GPU Acceleration
+- Use `tf.data.Dataset.prefetch()` for pipeline efficiency
+- `@tf.function` decorator for graph compilation
+- Mixed precision training: `tf.keras.mixed_precision`
+
+#### Qiskit Simulation Acceleration
+- Use Aer GPU simulator: `AerSimulator(method='statevector', device='GPU')`
+- Parallel circuit execution: `backend.run(circuits, shots=1000, **options)`
+- Matrix product state (MPS) for large systems
+
+#### Memory Management
+- TensorFlow: gradient checkpointing for deep models
+- Qiskit: use `SparsePauliOp` instead of dense matrices
+- Batch processing: don't load all states into memory
+
+### 10.15. Summary of Technology Choices
+
+**Qiskit handles:**
+- Quantum state generation and validation
+- Circuit construction and execution
+- Quantum kernels and feature maps
+- Hardware interface and error mitigation
+
+**TensorFlow handles:**
+- Neural network training and inference
+- Automatic differentiation
+- Pipeline optimization (batching, prefetching)
+- Experiment tracking (TensorBoard)
+
+**Integration points:**
+- Numpy arrays as lingua franca
+- TensorFlow Quantum for tight coupling
+- Qiskit primitives (Estimator/Sampler) work with both
+
+**This stack gives you:**
+- Production-ready quantum ML (Qiskit ML is mature)
+- Powerful classical ML with proven tooling
+- Clear path to real hardware
+- Industry-standard workflow
+
+---
+
 ## REFERENCES
 
 This framework synthesizes insights from a broad range of research areas. Key foundational works include:
