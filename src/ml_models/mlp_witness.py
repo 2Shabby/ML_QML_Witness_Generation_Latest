@@ -75,10 +75,17 @@ class MLPWitnessLearner:
         self.optimizer_name = optimizer
         self.random_state = random_state
 
-        # Set random seeds
+        # Set random seeds for reproducibility
         if random_state is not None:
-            tf.random.set_seed(random_state)
+            import random
+            random.seed(random_state)
             np.random.seed(random_state)
+            tf.random.set_seed(random_state)
+            # Set additional TF determinism
+            import os
+            os.environ['PYTHONHASHSEED'] = str(random_state)
+            os.environ['TF_DETERMINISTIC_OPS'] = '1'
+            os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
 
         # Build model
         self.model = self._build_model()
@@ -179,6 +186,8 @@ class MLPWitnessLearner:
             cb.append(callbacks.EarlyStopping(
                 monitor='val_loss',
                 patience=patience,
+                min_delta=0.0001,  # Minimum change to qualify as improvement
+                mode='min',
                 restore_best_weights=True,
                 verbose=1
             ))

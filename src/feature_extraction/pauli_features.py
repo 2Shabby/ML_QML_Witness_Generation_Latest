@@ -54,17 +54,19 @@ def get_pauli_basis(n_qubits: int, include_identity: bool = False) -> PauliList:
 def extract_pauli_features(
     rho: DensityMatrix,
     pauli_basis: Optional[PauliList] = None,
-    normalize: bool = True
+    normalize: bool = False
 ) -> np.ndarray:
     """
     Extract Pauli feature vector from a density matrix.
 
     Following Section 3.1.2: x_ρ = (Tr(ρ P₁), Tr(ρ P₂), ..., Tr(ρ P_{N}))
 
+    The expectation values Tr(ρ P_k) are real and in the range [-1, 1].
+
     Args:
         rho: Density matrix to extract features from
         pauli_basis: Pauli basis to use (if None, generated automatically)
-        normalize: Whether to normalize by √d for proper Bloch vector
+        normalize: Whether to normalize (deprecated, kept for compatibility)
 
     Returns:
         Feature vector as numpy array
@@ -80,12 +82,8 @@ def extract_pauli_features(
 
     for pauli in pauli_basis:
         # Compute expectation value: Tr(ρ P)
+        # Pauli matrices have eigenvalues ±1, so expectation is in [-1, 1]
         expectation = np.trace(rho.data @ pauli.to_matrix()).real
-
-        # Normalize if requested (Pauli operators have trace=0 except I)
-        if normalize and pauli.to_label() != 'I' * n_qubits:
-            expectation /= np.sqrt(dim)
-
         features.append(expectation)
 
     return np.array(features, dtype=np.float64)
@@ -94,7 +92,7 @@ def extract_pauli_features(
 def extract_features_batch(
     states: List[DensityMatrix],
     pauli_basis: Optional[PauliList] = None,
-    normalize: bool = True,
+    normalize: bool = False,
     verbose: bool = True
 ) -> np.ndarray:
     """
@@ -214,6 +212,9 @@ def group_commuting_paulis(pauli_list: PauliList) -> List[List[int]]:
 
     Following Section 3.4.1 for measurement decomposition.
 
+    This uses a greedy graph coloring approach where Paulis that mutually
+    commute can be grouped together for simultaneous measurement.
+
     Args:
         pauli_list: List of Pauli operators
 
@@ -221,6 +222,10 @@ def group_commuting_paulis(pauli_list: PauliList) -> List[List[int]]:
         List of groups, where each group is a list of indices
     """
     n_paulis = len(pauli_list)
+
+    if n_paulis == 0:
+        return []
+
     groups = []
     assigned = [False] * n_paulis
 
@@ -232,17 +237,15 @@ def group_commuting_paulis(pauli_list: PauliList) -> List[List[int]]:
         group = [i]
         assigned[i] = True
 
-        # Find all Paulis that commute with all members of current group
+        # Try to add remaining unassigned Paulis to this group
         for j in range(i + 1, n_paulis):
             if assigned[j]:
                 continue
 
-            # Check if j commutes with all members of group
-            commutes_with_all = True
-            for k in group:
-                if not pauli_list[j].commutes(pauli_list[k]):
-                    commutes_with_all = False
-                    break
+            # Check if j commutes with ALL members of current group
+            commutes_with_all = all(
+                pauli_list[j].commutes(pauli_list[k]) for k in group
+            )
 
             if commutes_with_all:
                 group.append(j)

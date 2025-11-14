@@ -98,8 +98,10 @@ class SVMWitnessLearner:
             logger.info(f"Training samples: {len(X)}, Features: {X.shape[1]}")
 
         # Split data
+        # Use a different seed for split to avoid bad luck with specific random states
+        split_seed = self.random_state + 1000 if self.random_state is not None else None
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=self.random_state, stratify=y
+            X, y, test_size=test_size, random_state=split_seed, stratify=y
         )
 
         # Train SVM

@@ -6,9 +6,6 @@ import pytest
 import numpy as np
 from qiskit.quantum_info import DensityMatrix, PauliList
 
-import sys
-sys.path.insert(0, '/home/user/ML_QML_Witness_Generation')
-
 from src.quantum_states.state_generation import generate_bell_state, generate_separable_state
 from src.feature_extraction.pauli_features import (
     get_pauli_basis,
@@ -110,10 +107,20 @@ class TestFeatureExtraction:
         cost = estimate_measurement_cost(pauli_list)
         assert cost == 1  # All can be measured together
 
-        # Non-commuting Paulis
+        # XX, YY, ZZ also all commute (can be measured together)
         pauli_list = PauliList(['XX', 'YY', 'ZZ'])
         cost = estimate_measurement_cost(pauli_list)
-        assert cost >= 2  # At least 2 settings needed
+        assert cost == 1  # All can be measured together
+
+        # Truly non-commuting Paulis on same qubit
+        pauli_list = PauliList(['XI', 'YI', 'ZI'])
+        cost = estimate_measurement_cost(pauli_list)
+        assert cost == 3  # All three are mutually non-commuting, need 3 settings
+
+        # Mixed case: some commute, some don't
+        pauli_list = PauliList(['XI', 'ZI', 'IX'])
+        cost = estimate_measurement_cost(pauli_list)
+        assert cost == 2  # XI-ZI don't commute, but IX commutes with ZI
 
     def test_feature_extraction_properties(self):
         """Test mathematical properties of feature extraction."""
