@@ -1,0 +1,55 @@
+# Use-Case 4: Entanglement Detection from Incomplete Measurements
+
+# @package _global_
+
+# Inherit defaults and override
+defaults:
+  - /defaults
+  - /model/mlp
+  - _self_
+
+experiment_name: "incomplete_measurements"
+
+# System: 2-qubit for proof of concept
+system:
+  n_qubits: 2
+  system_type: "qubit"
+
+# Generate larger dataset for this use case
+data:
+  n_samples: 5000
+  entangled_fraction: 0.5
+  test_size: 0.2
+
+# Key aspect: Use sparse measurements
+features:
+  sparse_measurements: true
+  sparse_strategy: "two_body"  # Only two-body correlations
+  # For 2 qubits: 15 total Pauli operators
+  # Sparse: ~7 operators (ZZ, XX, YY, XZ, ZX, XY, YX)
+  n_sparse_features: 7
+
+# Use MLP for high accuracy with limited features
+model:
+  type: "mlp"
+  hidden_layers: [64, 32, 16]
+  dropout_rate: 0.4  # Higher dropout due to limited features
+
+training:
+  epochs: 150
+  patience: 20
+
+# Evaluation: measure performance vs. feature count
+evaluation:
+  feature_ablation: true
+  feature_counts: [3, 5, 7, 9, 11, 13, 15]  # Test with different sparse levels
+  metrics:
+    - "accuracy"
+    - "precision"
+    - "recall"
+    - "f1"
+
+output:
+  save_dir: "results/incomplete_measurements"
+  save_plots: true
+  plot_feature_ablation: true
