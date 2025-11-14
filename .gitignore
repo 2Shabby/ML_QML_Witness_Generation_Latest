@@ -1,11 +1,53 @@
-src/__pycache__/__init__.cpython-313.pyc
-src/feature_extraction/__pycache__/__init__.cpython-313.pyc
-src/feature_extraction/__pycache__/pauli_features.cpython-313.pyc
-src/ml_models/__pycache__/__init__.cpython-313.pyc
-src/ml_models/__pycache__/svm_witness.cpython-313.pyc
-src/quantum_states/__pycache__/__init__.cpython-313.pyc
-src/quantum_states/__pycache__/state_generation.cpython-313.pyc
-tests/__pycache__/__init__.cpython-313.pyc
-tests/__pycache__/test_feature_extraction.cpython-313-pytest-9.0.1.pyc
-tests/__pycache__/test_integration.cpython-313-pytest-9.0.1.pyc
-tests/__pycache__/test_state_generation.cpython-313-pytest-9.0.1.pyc
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+pytest_cache/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific
+*.log
+.env
