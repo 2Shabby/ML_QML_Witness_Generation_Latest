@@ -235,17 +235,10 @@ def train_transformer(
         random_state=seed
     )
 
-    # Combine train data for learner's internal split
-    X_combined = np.vstack([X_train, X_test])
-    y_combined = np.concatenate([y_train, y_test])
+    # Train on pre-split data (no data leakage)
+    train_metrics = learner.fit(X_train, y_train, X_test, y_test, verbose=True)
 
-    # Calculate test_size to match our split
-    test_size = len(X_test) / len(X_combined)
-
-    # Train (will do its own split, but metrics will be comparable)
-    train_metrics = learner.train(X_combined, y_combined, test_size=test_size, verbose=True)
-
-    # Also evaluate on our specific test set
+    # Evaluate on test set
     y_pred_test = learner.predict(X_test)
 
     metrics = {
