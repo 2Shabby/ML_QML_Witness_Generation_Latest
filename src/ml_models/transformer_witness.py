@@ -29,6 +29,16 @@ import math
 
 logger = logging.getLogger(__name__)
 
+# ============================================================================
+# CENTRALIZED DEFAULT CONFIGURATION
+# Minimal transformer for 36D binary classification task
+# ============================================================================
+DEFAULT_D_MODEL = 16      # Hidden dimension (reduced from 64)
+DEFAULT_N_HEADS = 2       # Attention heads (reduced from 4)
+DEFAULT_N_LAYERS = 1      # Transformer layers (reduced from 2)
+DEFAULT_D_FF = 32         # Feed-forward dimension (reduced from 128)
+DEFAULT_DROPOUT = 0.1     # Dropout probability
+
 
 class PositionalEncoding(nn.Module):
     """
@@ -149,11 +159,11 @@ class TransformerClassifier(nn.Module):
     def __init__(
         self,
         n_features: int = 36,
-        d_model: int = 64,
-        n_heads: int = 4,
-        n_layers: int = 2,
-        d_ff: int = 128,
-        dropout: float = 0.1,
+        d_model: int = DEFAULT_D_MODEL,
+        n_heads: int = DEFAULT_N_HEADS,
+        n_layers: int = DEFAULT_N_LAYERS,
+        d_ff: int = DEFAULT_D_FF,
+        dropout: float = DEFAULT_DROPOUT,
         use_pauli_type: bool = True
     ):
         super().__init__()
@@ -266,11 +276,11 @@ class HybridTransformerWitness(nn.Module):
     def __init__(
         self,
         n_features: int = 36,
-        d_model: int = 64,
-        n_heads: int = 4,
-        n_layers: int = 2,
-        d_ff: int = 128,
-        dropout: float = 0.1
+        d_model: int = DEFAULT_D_MODEL,
+        n_heads: int = DEFAULT_N_HEADS,
+        n_layers: int = DEFAULT_N_LAYERS,
+        d_ff: int = DEFAULT_D_FF,
+        dropout: float = DEFAULT_DROPOUT
     ):
         super().__init__()
 
@@ -405,11 +415,11 @@ class TransformerWitnessLearner:
         self,
         pauli_basis: PauliList,
         mode: str = 'hybrid',
-        d_model: int = 64,
-        n_heads: int = 4,
-        n_layers: int = 2,
-        d_ff: int = 128,
-        dropout: float = 0.1,
+        d_model: int = DEFAULT_D_MODEL,
+        n_heads: int = DEFAULT_N_HEADS,
+        n_layers: int = DEFAULT_N_LAYERS,
+        d_ff: int = DEFAULT_D_FF,
+        dropout: float = DEFAULT_DROPOUT,
         learning_rate: float = 1e-3,
         weight_decay: float = 1e-4,
         batch_size: int = 32,
