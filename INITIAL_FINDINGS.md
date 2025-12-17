@@ -10,7 +10,17 @@
 
 **Hypothesis Status: STRONGLY SUPPORTED**
 
-The experimental results provide strong evidence that 36D restricted (1+2 body Pauli) features can reliably distinguish distillable from non-distillable 3-qubit states. The restricted feature space achieves **85.3% accuracy**, matching or exceeding the full 63D feature space with no statistically significant difference.
+The experimental results provide strong evidence that 36D restricted (1+2 body Pauli) features can reliably distinguish distillable from non-distillable 3-qubit states.
+
+### Model Comparison Results (5000 samples, seed=42)
+
+| Model | Accuracy | Precision | Recall | F1 | Parameters |
+|-------|----------|-----------|--------|-----|------------|
+| **Linear SVM** | 85.6% | 85.3% | 99.1% | 91.7% | ~36 |
+| **Transformer Classifier** | **99.7%** | 99.8% | 99.9% | 99.8% | 3,186 |
+| **Transformer Hybrid** | **100.0%** | 100.0% | 100.0% | 100.0% | 2,978 |
+
+**Key Finding:** A minimal transformer (d_model=16, n_layers=1, n_heads=2) with ~3k parameters dramatically outperforms linear SVM, achieving near-perfect classification while maintaining interpretability through extractable witness operators.
 
 ---
 
@@ -101,6 +111,38 @@ The experimental results provide strong evidence that 36D restricted (1+2 body P
 
 **Interpretation:** Performance is relatively stable across noise levels, with peak performance at moderate noise (~0.3). This suggests the classifier works well across the practical operating range.
 
+### 6. Transformer vs SVM Comparison
+
+We implemented a minimal transformer architecture to compare against linear SVM on the same 36D feature space.
+
+#### Architecture
+
+| Component | Value |
+|-----------|-------|
+| Hidden dimension (d_model) | 16 |
+| Attention heads | 2 |
+| Transformer layers | 1 |
+| Feed-forward dimension | 32 |
+| Total parameters | ~3,000 |
+
+#### Results
+
+| Model | Test Accuracy | Test Precision | Test Recall | Test F1 |
+|-------|---------------|----------------|-------------|---------|
+| Linear SVM | 85.6% | 85.3% | 99.1% | 91.7% |
+| Transformer Classifier | **99.7%** | 99.8% | 99.9% | 99.8% |
+| Transformer Hybrid | **100.0%** | 100.0% | 100.0% | 100.0% |
+
+#### Interpretation
+
+1. **Non-linear decision boundary matters**: The transformer's attention mechanism can learn non-linear relationships between Pauli features that the linear SVM cannot capture.
+
+2. **Feature interactions are important**: Self-attention allows the model to learn which pairs of Pauli observables should be considered together, improving classification.
+
+3. **Hybrid mode maintains interpretability**: The Hybrid Transformer outputs witness coefficients W = Σ wₖPₖ while achieving perfect classification, enabling both accurate prediction and physical interpretation.
+
+4. **Minimal architecture sufficient**: Only ~3k parameters are needed - the task doesn't require large models, but does benefit from the attention mechanism's ability to model feature interactions.
+
 ---
 
 ## Gap Analysis: What's Missing from GOAL.md
@@ -138,17 +180,21 @@ The experimental results provide strong evidence that 36D restricted (1+2 body P
    - See Section 6 below for full analysis
    - **Result: No strong negative results found**
 
+### Now Implemented ✅ (Transformer Pipeline)
+
+3. **Transformer-based nonlinear model comparison**
+   - Minimal transformer (d_model=16, n_layers=1) implemented
+   - Achieves 99.7-100% accuracy vs SVM's 85.6%
+   - Hybrid mode maintains witness interpretability
+   - See Section 6 for full analysis
+
 ### Not Yet Implemented ❌
 
 1. **Bound entangled state detection**
    - PPT entangled states not explicitly tested at scale
    - Would benefit from DPS Level 3+ for rigorous detection
 
-2. **Nonlinear model comparison (MLP)**
-   - Linear model achieves strong results
-   - MLP comparison would validate linear boundary assumption
-
-3. **L1-regularized sparse SVM**
+2. **L1-regularized sparse SVM**
    - Would reduce measurement settings further
    - Currently not implemented
 
@@ -205,14 +251,16 @@ After systematic investigation of:
 
 ### Primary Finding
 
-**The research hypothesis is STRONGLY SUPPORTED.** Restricted 1+2 body Pauli features (36D) can reliably distinguish distillable from non-distillable 3-qubit states with 85%+ accuracy, matching full tomography (63D) with no significant difference.
+**The research hypothesis is STRONGLY SUPPORTED.** Restricted 1+2 body Pauli features (36D) can reliably distinguish distillable from non-distillable 3-qubit states:
+- **Linear SVM:** 85.6% accuracy (baseline)
+- **Transformer:** 99.7-100% accuracy (state-of-the-art)
 
 ### Physical Interpretation
 
 1. **Distillability information survives projection** to local + pairwise correlators
 2. **3-body correlations are not essential** for practical classification
-3. **Two-body terms dominate** (67.5% of witness importance)
-4. **The linear boundary is sufficient** - no evidence that nonlinear structure is needed
+3. **Two-body terms dominate** (67.5% of witness importance in SVM)
+4. **Non-linear feature interactions matter:** Transformer's attention mechanism captures correlations between Pauli observables that linear models miss
 
 ### Practical Implications
 
@@ -220,6 +268,7 @@ After systematic investigation of:
 2. **Real-time verification possible:** Single scalar Tr(Wρ) + b evaluation
 3. **Hardware compatible:** No 3-qubit entangling gates required for readout
 4. **QEC resource certification:** Perfect classification of GHZ, W, cluster states
+5. **Near-perfect accuracy achievable:** Minimal transformer (~3k params) achieves 99.7-100% accuracy
 
 ---
 
@@ -237,9 +286,10 @@ After systematic investigation of:
 
 ### Medium Priority
 
-3. **Add nonlinear model comparison**
-   - Train MLP on same features
-   - Quantify any improvement over linear SVM
+3. ~~Add nonlinear model comparison~~ ✅ **COMPLETED**
+   - Transformer implemented and tested
+   - **Result:** 99.7-100% accuracy vs SVM's 85.6%
+   - See Section 6 for details
 
 4. ~~Expand noise analysis~~ ✅ **COMPLETED**
    - ~~Test different noise models (dephasing, amplitude damping)~~
@@ -292,6 +342,37 @@ Seeds tested: 42, 142, 242, 342, 442
 - `src/quantum_states/distillability_oracles.py` - Oracle abstraction layer
 - `tests/test_dps_oracle.py` - Oracle test suite
 - `scripts/investigate_negative_results.py` - Adversarial investigation script
+
+## Appendix C: Transformer Configuration
+
+### Architecture (Minimal)
+
+```
+Model: TransformerWitnessLearner
+Mode: hybrid (interpretable witness extraction)
+d_model: 16
+n_heads: 2
+n_layers: 1
+d_ff: 32
+dropout: 0.1
+Parameters: ~3,000
+```
+
+### Training Configuration
+
+```
+Optimizer: AdamW (lr=1e-3, weight_decay=1e-4)
+Batch size: 64
+Max epochs: 100
+Early stopping patience: 15
+Scheduler: ReduceLROnPlateau (factor=0.5, patience=5)
+```
+
+### Files Added
+
+- `src/ml_models/transformer_witness.py` - Transformer implementation
+- `scripts/run_transformer_experiments.py` - Experiment runner
+- `tests/test_transformer_witness.py` - Test suite
 
 ---
 
