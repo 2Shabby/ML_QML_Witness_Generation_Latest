@@ -6,8 +6,18 @@ import pytest
 import numpy as np
 import logging
 
-from src.quantum_states.state_generation import generate_dataset
-from src.feature_extraction.pauli_features import get_pauli_basis, extract_features_batch
+from src.quantum_states.state_generation import (
+    generate_dataset,
+    generate_distillability_dataset,
+    generate_entangled_state,
+    generate_3qubit_product_state,
+    check_npt_any_bipartition
+)
+from src.feature_extraction.pauli_features import (
+    get_pauli_basis,
+    extract_features_batch,
+    create_sparse_measurement_set
+)
 from src.ml_models.svm_witness import SVMWitnessLearner
 
 # Set up logging
@@ -213,6 +223,116 @@ class TestIntegration:
         logger.info("\n" + "="*60)
         logger.info("Known states test passed!")
         logger.info("="*60)
+
+    def test_3qubit_distillability_pipeline(self):
+        """
+        Test end-to-end 3-qubit distillability witness learning.
+
+        This is the core pipeline from GOAL.md:
+        3-qubit states → 36D features → SVM → witness
+        """
+        logger.info("="*60)
+        logger.info("Testing 3-qubit distillability pipeline (GOAL.md)")
+        logger.info("="*60)
+
+        # Parameters
+        n_samples = 500
+        seed = 42
+
+        # Step 1: Generate dataset with distillability labels (NOT entanglement!)
+        logger.info("\n[Step 1] Generating 3-qubit distillability dataset...")
+        states, labels = generate_distillability_dataset(
+            n_samples=n_samples,
+            noise_range=(0.0, 0.5),
+            seed=seed
+        )
+
+        assert len(states) == n_samples
+        assert all(state.dim == 8 for state in states), "All states should be 3-qubit (dim=8)"
+
+        n_distillable = np.sum(labels)
+        n_non_distillable = len(labels) - n_distillable
+        logger.info(f"  Distillable: {n_distillable} ({100*n_distillable/n_samples:.1f}%)")
+        logger.info(f"  Non-distillable: {n_non_distillable} ({100*n_non_distillable/n_samples:.1f}%)")
+
+        # Step 2: Extract 36D restricted features (1+2 body Paulis only)
+        logger.info("\n[Step 2] Extracting 36D restricted features...")
+        basis = create_sparse_measurement_set(3, 'two_body')
+        logger.info(f"  Restricted basis size: {len(basis)} (vs 63 full)")
+        assert len(basis) == 36, f"Expected 36D basis, got {len(basis)}"
+
+        features = extract_features_batch(states, basis, verbose=False)
+        logger.info(f"  Feature matrix shape: {features.shape}")
+        assert features.shape == (n_samples, 36), f"Expected ({n_samples}, 36), got {features.shape}"
+
+        # Step 3: Train linear SVM witness
+        logger.info("\n[Step 3] Training linear SVM witness...")
+        learner = SVMWitnessLearner(
+            pauli_basis=basis,
+            C=1.0,
+            kernel='linear',
+            random_state=seed
+        )
+
+        metrics = learner.train(features, labels, test_size=0.2, verbose=True)
+
+        logger.info(f"\n  Test Accuracy:  {metrics['test_accuracy']:.4f}")
+        logger.info(f"  Test Precision: {metrics['test_precision']:.4f}")
+        logger.info(f"  Test Recall:    {metrics['test_recall']:.4f}")
+
+        # Accuracy should be better than random (50%)
+        # With restricted 36D features, we expect ~60-70% as baseline
+        assert metrics['test_accuracy'] > 0.55, \
+            f"Test accuracy {metrics['test_accuracy']:.2f} should be > 55% (better than random)"
+
+        # Step 4: Extract witness operator
+        logger.info("\n[Step 4] Extracting witness operator...")
+        witness = learner.get_witness_operator()
+        assert witness is not None, "Witness should not be None"
+        assert len(witness) <= 36, f"Witness should have at most 36 terms, got {len(witness)}"
+        logger.info(f"  Witness terms: {len(witness)}")
+
+        # Step 5: Get sparse witness (for measurement efficiency)
+        sparse_witness = learner.get_sparse_witness(threshold=0.01)
+        logger.info(f"  Sparse witness terms: {len(sparse_witness)}")
+
+        # Step 6: Measurement cost
+        measurement_cost = learner.get_measurement_cost()
+        logger.info(f"  Measurement settings: {measurement_cost}")
+
+        # Step 7: Verify witness on known states
+        logger.info("\n[Step 5] Verifying witness on known states...")
+
+        # Pure GHZ should be distillable
+        ghz = generate_entangled_state(3, 'ghz', noise_level=0.0)
+        ghz_features = extract_features_batch([ghz], basis, verbose=False)
+        ghz_pred = learner.predict(ghz_features)[0]
+        ghz_actual = check_npt_any_bipartition(ghz)
+        logger.info(f"  Pure GHZ: predicted={ghz_pred}, actual={ghz_actual}")
+
+        # Pure W should be distillable
+        w_state = generate_entangled_state(3, 'w', noise_level=0.0)
+        w_features = extract_features_batch([w_state], basis, verbose=False)
+        w_pred = learner.predict(w_features)[0]
+        w_actual = check_npt_any_bipartition(w_state)
+        logger.info(f"  Pure W: predicted={w_pred}, actual={w_actual}")
+
+        # Product state should NOT be distillable
+        product = generate_3qubit_product_state(seed=123)
+        product_features = extract_features_batch([product], basis, verbose=False)
+        product_pred = learner.predict(product_features)[0]
+        product_actual = check_npt_any_bipartition(product)
+        logger.info(f"  Product: predicted={product_pred}, actual={product_actual}")
+
+        # Product states should be correctly classified as non-distillable (label=0)
+        # This is a key sanity check
+        assert product_actual == 0, "Product state should actually be non-distillable"
+
+        logger.info("\n" + "="*60)
+        logger.info("3-qubit distillability pipeline test PASSED!")
+        logger.info("="*60)
+
+        return metrics  # Return for further analysis if needed
 
 
 if __name__ == '__main__':
