@@ -604,13 +604,16 @@ cvxpy >= 1.4.0
 \begin{verbatim}
 # SVM experiments
 python scripts/run_experiments.py \
-    --experiment ablation --n-samples 5000 --seed 42
+    --experiment all --n-samples 5000 --seed 42
 
 # Transformer experiments
 python scripts/run_transformer_experiments.py \
     --experiment all --n-samples 5000
 
-# Run test suite
+# Generate plots
+python scripts/plot_results.py --plot all --save
+
+# Run test suite (56 tests)
 python -m pytest tests/ -v
 \end{verbatim}
 
