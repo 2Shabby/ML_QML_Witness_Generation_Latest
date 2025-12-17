@@ -95,9 +95,9 @@ class TransformerBlock(nn.Module):
             embed_dim=d_model,
             num_heads=n_heads,
             dropout=dropout,
-            batch_first=True,
-            average_attn_weights=False  # Return per-head attention weights
+            batch_first=True
         )
+        self.n_heads = n_heads
 
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, d_ff),
@@ -120,7 +120,8 @@ class TransformerBlock(nn.Module):
             Output tensor and attention weights
         """
         # Self-attention with residual
-        attn_out, attn_weights = self.attention(x, x, x)
+        # Pass average_attn_weights=False to get per-head attention (batch, n_heads, seq, seq)
+        attn_out, attn_weights = self.attention(x, x, x, average_attn_weights=False)
         x = self.norm1(x + self.dropout(attn_out))
 
         # Feed-forward with residual
