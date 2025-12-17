@@ -97,77 +97,143 @@ def plot_ablation_study(results: Dict, save_path: Optional[Path] = None):
     Plot ablation study comparing 36D restricted vs 63D full features.
 
     Creates a grouped bar chart showing accuracy, precision, recall, F1
-    for both feature sets.
+    for both feature sets. Handles both SVM-only and multi-model results.
     """
     if not MATPLOTLIB_AVAILABLE:
         logger.error("Matplotlib required for plotting")
         return
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    # Check if this is multi-model comparison (transformer) or single-model (SVM)
+    is_multi_model = 'models' in results
 
-    # Left plot: Accuracy comparison with error bars
-    ax1 = axes[0]
+    if is_multi_model:
+        # Multi-model ablation comparison
+        models = list(results['models'].keys())
+        n_models = len(models)
 
-    metrics = ['accuracy', 'precision', 'recall', 'f1']
-    x = np.arange(len(metrics))
-    width = 0.35
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-    restricted = results['restricted_36d']
-    full = results['full_63d']
+        # Left plot: 36D vs 63D accuracy by model
+        ax1 = axes[0]
 
-    values_36d = [
-        restricted['accuracy_mean'],
-        restricted['precision_mean'],
-        restricted['recall_mean'],
-        restricted['f1_mean']
-    ]
-    values_63d = [
-        full['accuracy_mean'],
-        full['precision_mean'],
-        full['recall_mean'],
-        full['f1_mean']
-    ]
+        x = np.arange(n_models)
+        width = 0.35
 
-    bars1 = ax1.bar(x - width/2, values_36d, width, label='36D Restricted', color='#2ecc71', alpha=0.8)
-    bars2 = ax1.bar(x + width/2, values_63d, width, label='63D Full', color='#3498db', alpha=0.8)
+        acc_36d = [results['models'][m]['restricted_36d']['accuracy_mean'] for m in models]
+        acc_63d = [results['models'][m]['full_63d']['accuracy_mean'] for m in models]
+        std_36d = [results['models'][m]['restricted_36d']['accuracy_std'] for m in models]
+        std_63d = [results['models'][m]['full_63d']['accuracy_std'] for m in models]
 
-    # Add error bar for accuracy
-    ax1.errorbar(x[0] - width/2, values_36d[0], yerr=restricted['accuracy_std'],
-                 fmt='none', color='black', capsize=5)
-    ax1.errorbar(x[0] + width/2, values_63d[0], yerr=full['accuracy_std'],
-                 fmt='none', color='black', capsize=5)
+        bars1 = ax1.bar(x - width/2, acc_36d, width, yerr=std_36d, label='36D Restricted',
+                        color='#2ecc71', alpha=0.8, capsize=5)
+        bars2 = ax1.bar(x + width/2, acc_63d, width, yerr=std_63d, label='63D Full',
+                        color='#3498db', alpha=0.8, capsize=5)
 
-    ax1.set_ylabel('Score')
-    ax1.set_title('36D Restricted vs 63D Full Features')
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(['Accuracy', 'Precision', 'Recall', 'F1'])
-    ax1.legend()
-    ax1.set_ylim(0, 1.1)
-    ax1.grid(axis='y', alpha=0.3)
+        ax1.set_xlabel('Model')
+        ax1.set_ylabel('Accuracy')
+        ax1.set_title('36D vs 63D Feature Comparison (All Models)')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels([m.upper() for m in models], rotation=15, ha='right')
+        ax1.legend()
+        ax1.set_ylim(0, 1.1)
+        ax1.grid(axis='y', alpha=0.3)
 
-    # Right plot: Fold-by-fold accuracy comparison
-    ax2 = axes[1]
+        # Right plot: Accuracy gap by model
+        ax2 = axes[1]
 
-    folds = range(1, len(restricted['fold_accuracies']) + 1)
-    ax2.plot(folds, restricted['fold_accuracies'], 'o-', label='36D Restricted',
-             color='#2ecc71', linewidth=2, markersize=8)
-    ax2.plot(folds, full['fold_accuracies'], 's-', label='63D Full',
-             color='#3498db', linewidth=2, markersize=8)
+        gaps = [results['models'][m]['statistical_comparison']['accuracy_gap'] for m in models]
+        p_vals = [results['models'][m]['statistical_comparison']['paired_ttest_p'] for m in models]
+        sig = [results['models'][m]['statistical_comparison']['significant_at_0.05'] for m in models]
 
-    ax2.set_xlabel('Fold')
-    ax2.set_ylabel('Accuracy')
-    ax2.set_title('Cross-Validation Fold Accuracies')
-    ax2.legend()
-    ax2.set_xticks(folds)
-    ax2.grid(alpha=0.3)
+        colors = ['#e74c3c' if s else '#95a5a6' for s in sig]
+        bars = ax2.bar(models, gaps, color=colors, alpha=0.8, edgecolor='black')
 
-    # Add statistical info
-    stat = results['statistical_comparison']
-    significance = "Significant" if stat['significant_at_0.05'] else "Not significant"
-    fig.text(0.5, 0.02,
-             f"Gap: {stat['accuracy_gap']:.4f} | t-stat: {stat['paired_ttest_t']:.3f} | "
-             f"p-value: {stat['paired_ttest_p']:.4f} ({significance} at p<0.05)",
-             ha='center', fontsize=10, style='italic')
+        # Add p-value annotations
+        for bar, p, s in zip(bars, p_vals, sig):
+            marker = '*' if s else ''
+            ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.002,
+                    f'p={p:.3f}{marker}', ha='center', va='bottom', fontsize=9)
+
+        ax2.axhline(0, color='black', linestyle='-', linewidth=0.5)
+        ax2.set_xlabel('Model')
+        ax2.set_ylabel('Accuracy Gap (63D - 36D)')
+        ax2.set_title('Feature Dimension Effect by Model')
+        ax2.set_xticklabels([m.upper() for m in models], rotation=15, ha='right')
+        ax2.grid(axis='y', alpha=0.3)
+
+        # Add legend for significance
+        from matplotlib.patches import Patch
+        legend_elements = [Patch(facecolor='#e74c3c', label='Significant (p<0.05)'),
+                          Patch(facecolor='#95a5a6', label='Not significant')]
+        ax2.legend(handles=legend_elements, loc='upper right')
+
+    else:
+        # Single-model (SVM) ablation plot
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+        # Left plot: Accuracy comparison with error bars
+        ax1 = axes[0]
+
+        metrics = ['accuracy', 'precision', 'recall', 'f1']
+        x = np.arange(len(metrics))
+        width = 0.35
+
+        restricted = results['restricted_36d']
+        full = results['full_63d']
+
+        values_36d = [
+            restricted['accuracy_mean'],
+            restricted['precision_mean'],
+            restricted['recall_mean'],
+            restricted['f1_mean']
+        ]
+        values_63d = [
+            full['accuracy_mean'],
+            full['precision_mean'],
+            full['recall_mean'],
+            full['f1_mean']
+        ]
+
+        bars1 = ax1.bar(x - width/2, values_36d, width, label='36D Restricted', color='#2ecc71', alpha=0.8)
+        bars2 = ax1.bar(x + width/2, values_63d, width, label='63D Full', color='#3498db', alpha=0.8)
+
+        # Add error bar for accuracy
+        ax1.errorbar(x[0] - width/2, values_36d[0], yerr=restricted['accuracy_std'],
+                     fmt='none', color='black', capsize=5)
+        ax1.errorbar(x[0] + width/2, values_63d[0], yerr=full['accuracy_std'],
+                     fmt='none', color='black', capsize=5)
+
+        ax1.set_ylabel('Score')
+        ax1.set_title('36D Restricted vs 63D Full Features')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(['Accuracy', 'Precision', 'Recall', 'F1'])
+        ax1.legend()
+        ax1.set_ylim(0, 1.1)
+        ax1.grid(axis='y', alpha=0.3)
+
+        # Right plot: Fold-by-fold accuracy comparison
+        ax2 = axes[1]
+
+        folds = range(1, len(restricted['fold_accuracies']) + 1)
+        ax2.plot(folds, restricted['fold_accuracies'], 'o-', label='36D Restricted',
+                 color='#2ecc71', linewidth=2, markersize=8)
+        ax2.plot(folds, full['fold_accuracies'], 's-', label='63D Full',
+                 color='#3498db', linewidth=2, markersize=8)
+
+        ax2.set_xlabel('Fold')
+        ax2.set_ylabel('Accuracy')
+        ax2.set_title('Cross-Validation Fold Accuracies')
+        ax2.legend()
+        ax2.set_xticks(folds)
+        ax2.grid(alpha=0.3)
+
+        # Add statistical info
+        stat = results['statistical_comparison']
+        significance = "Significant" if stat['significant_at_0.05'] else "Not significant"
+        fig.text(0.5, 0.02,
+                 f"Gap: {stat['accuracy_gap']:.4f} | t-stat: {stat['paired_ttest_t']:.3f} | "
+                 f"p-value: {stat['paired_ttest_p']:.4f} ({significance} at p<0.05)",
+                 ha='center', fontsize=10, style='italic')
 
     plt.tight_layout(rect=[0, 0.05, 1, 1])
 
@@ -260,64 +326,123 @@ def plot_per_family(results: Dict, save_path: Optional[Path] = None):
     Plot accuracy breakdown by quantum state family.
 
     Shows how well the classifier performs on each type of state.
+    Handles both SVM-only results and multi-model comparison results.
     """
     if not MATPLOTLIB_AVAILABLE:
         logger.error("Matplotlib required for plotting")
         return
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
     families = list(results['per_family'].keys())
     family_data = results['per_family']
 
-    # Left plot: Accuracy by family
-    ax1 = axes[0]
+    # Check if this is multi-model comparison (transformer) or single-model (SVM)
+    first_family = family_data[families[0]]
+    is_multi_model = 'models' in first_family
 
-    accuracies = [family_data[f]['accuracy'] for f in families]
-    colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6']
+    if is_multi_model:
+        # Multi-model comparison plot
+        fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
-    bars = ax1.bar(families, accuracies, color=colors, alpha=0.8, edgecolor='black')
+        # Left plot: Grouped bar chart by family and model
+        ax1 = axes[0]
 
-    # Add value labels on bars
-    for bar, acc in zip(bars, accuracies):
-        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
-                f'{acc:.3f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+        models = list(first_family['models'].keys())
+        x = np.arange(len(families))
+        width = 0.8 / len(models)
+        model_colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']
 
-    ax1.set_ylabel('Accuracy')
-    ax1.set_title('Classification Accuracy by State Family')
-    ax1.set_ylim(0, 1.15)
-    ax1.axhline(0.5, color='gray', linestyle=':', alpha=0.5, label='Random baseline')
-    ax1.legend()
-    ax1.grid(axis='y', alpha=0.3)
+        for i, model in enumerate(models):
+            accuracies = [family_data[f]['models'][model]['accuracy'] for f in families]
+            offset = (i - len(models)/2 + 0.5) * width
+            bars = ax1.bar(x + offset, accuracies, width, label=model.upper(),
+                          color=model_colors[i % len(model_colors)], alpha=0.8)
 
-    # Capitalize family names
-    ax1.set_xticklabels([f.upper() for f in families])
+        ax1.set_xlabel('State Family')
+        ax1.set_ylabel('Accuracy')
+        ax1.set_title('Classification Accuracy by State Family (All Models)')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels([f.upper() for f in families])
+        ax1.legend(loc='upper right')
+        ax1.set_ylim(0, 1.15)
+        ax1.axhline(0.5, color='gray', linestyle=':', alpha=0.5)
+        ax1.grid(axis='y', alpha=0.3)
 
-    # Right plot: Distillable fraction and metrics heatmap
-    ax2 = axes[1]
+        # Right plot: Heatmap of accuracies (models x families)
+        ax2 = axes[1]
 
-    metrics_data = np.array([
-        [family_data[f]['accuracy'] for f in families],
-        [family_data[f]['precision'] for f in families],
-        [family_data[f]['recall'] for f in families],
-        [family_data[f]['distillable_fraction'] for f in families]
-    ])
+        heatmap_data = np.array([
+            [family_data[f]['models'][m]['accuracy'] for f in families]
+            for m in models
+        ])
 
-    im = ax2.imshow(metrics_data, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
+        im = ax2.imshow(heatmap_data, cmap='RdYlGn', aspect='auto', vmin=0.5, vmax=1)
 
-    ax2.set_xticks(range(len(families)))
-    ax2.set_xticklabels([f.upper() for f in families])
-    ax2.set_yticks(range(4))
-    ax2.set_yticklabels(['Accuracy', 'Precision', 'Recall', 'Distill. Frac.'])
-    ax2.set_title('Performance Metrics Heatmap')
+        ax2.set_xticks(range(len(families)))
+        ax2.set_xticklabels([f.upper() for f in families])
+        ax2.set_yticks(range(len(models)))
+        ax2.set_yticklabels([m.upper() for m in models])
+        ax2.set_title('Accuracy Heatmap: Models vs Families')
 
-    # Add text annotations
-    for i in range(4):
-        for j in range(len(families)):
-            text = ax2.text(j, i, f'{metrics_data[i, j]:.2f}',
-                           ha='center', va='center', color='black', fontsize=9)
+        # Add text annotations
+        for i in range(len(models)):
+            for j in range(len(families)):
+                text = ax2.text(j, i, f'{heatmap_data[i, j]:.2f}',
+                               ha='center', va='center', color='black', fontsize=10)
 
-    plt.colorbar(im, ax=ax2, label='Score')
+        plt.colorbar(im, ax=ax2, label='Accuracy')
+
+    else:
+        # Single-model (SVM) plot
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+        # Left plot: Accuracy by family
+        ax1 = axes[0]
+
+        accuracies = [family_data[f]['accuracy'] for f in families]
+        colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6']
+
+        bars = ax1.bar(families, accuracies, color=colors, alpha=0.8, edgecolor='black')
+
+        # Add value labels on bars
+        for bar, acc in zip(bars, accuracies):
+            ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                    f'{acc:.3f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+        ax1.set_ylabel('Accuracy')
+        ax1.set_title('Classification Accuracy by State Family')
+        ax1.set_ylim(0, 1.15)
+        ax1.axhline(0.5, color='gray', linestyle=':', alpha=0.5, label='Random baseline')
+        ax1.legend()
+        ax1.grid(axis='y', alpha=0.3)
+
+        # Capitalize family names
+        ax1.set_xticklabels([f.upper() for f in families])
+
+        # Right plot: Distillable fraction and metrics heatmap
+        ax2 = axes[1]
+
+        metrics_data = np.array([
+            [family_data[f]['accuracy'] for f in families],
+            [family_data[f]['precision'] for f in families],
+            [family_data[f]['recall'] for f in families],
+            [family_data[f]['distillable_fraction'] for f in families]
+        ])
+
+        im = ax2.imshow(metrics_data, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
+
+        ax2.set_xticks(range(len(families)))
+        ax2.set_xticklabels([f.upper() for f in families])
+        ax2.set_yticks(range(4))
+        ax2.set_yticklabels(['Accuracy', 'Precision', 'Recall', 'Distill. Frac.'])
+        ax2.set_title('Performance Metrics Heatmap')
+
+        # Add text annotations
+        for i in range(4):
+            for j in range(len(families)):
+                text = ax2.text(j, i, f'{metrics_data[i, j]:.2f}',
+                               ha='center', va='center', color='black', fontsize=9)
+
+        plt.colorbar(im, ax=ax2, label='Score')
 
     plt.tight_layout()
 
@@ -588,10 +713,13 @@ def plot_all_from_directory(results_dir: Path, save_figures: bool = True):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Try to load and plot each type of results
+    # Include both SVM-only and transformer comparison results
     plot_configs = [
-        ('ablation_study_*.json', 'ablation', plot_ablation_study),
+        ('ablation_study_*.json', 'ablation_svm', plot_ablation_study),
+        ('ablation_comparison_*.json', 'ablation_all_models', plot_ablation_study),
         ('cross_validation_*.json', 'cross_validation', plot_cross_validation),
-        ('per_family_analysis_*.json', 'per_family', plot_per_family),
+        ('per_family_analysis_*.json', 'per_family_svm', plot_per_family),
+        ('per_family_comparison_*.json', 'per_family_all_models', plot_per_family),
         ('noise_robustness_*.json', 'noise_robustness', plot_noise_robustness),
         ('witness_coefficients_*.json', 'witness_coefficients', plot_witness_coefficients),
         ('model_comparison_*.json', 'model_comparison', plot_model_comparison),
@@ -814,14 +942,14 @@ Examples:
     ensure_figures_dir()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Map plot types to patterns and functions
+    # Map plot types to patterns (try transformer comparison first, then SVM-only)
     plot_map = {
-        'ablation': ('ablation_study_*.json', plot_ablation_study),
-        'cv': ('cross_validation_*.json', plot_cross_validation),
-        'family': ('per_family_analysis_*.json', plot_per_family),
-        'noise': ('noise_robustness_*.json', plot_noise_robustness),
-        'witness': ('witness_coefficients_*.json', plot_witness_coefficients),
-        'comparison': ('model_comparison_*.json', plot_model_comparison),
+        'ablation': (['ablation_comparison_*.json', 'ablation_study_*.json'], plot_ablation_study),
+        'cv': (['cv_comparison_*.json', 'cross_validation_*.json'], plot_cross_validation),
+        'family': (['per_family_comparison_*.json', 'per_family_analysis_*.json'], plot_per_family),
+        'noise': (['noise_robustness_*.json'], plot_noise_robustness),
+        'witness': (['witness_analysis_*.json', 'witness_coefficients_*.json'], plot_witness_coefficients),
+        'comparison': (['model_comparison_*.json'], plot_model_comparison),
     }
 
     if args.plot == 'all':
@@ -832,12 +960,17 @@ Examples:
         plot_summary_dashboard(results_dir, save_path)
 
     else:
-        pattern, plot_func = plot_map[args.plot]
+        patterns, plot_func = plot_map[args.plot]
 
         if args.results_file:
             results = load_results_file(args.results_file)
         else:
-            results = load_latest_results(pattern, results_dir)
+            # Try each pattern until we find results
+            results = None
+            for pattern in patterns:
+                results = load_latest_results(pattern, results_dir)
+                if results:
+                    break
 
         if results:
             save_path = FIGURES_DIR / f"{args.plot}_{timestamp}.png" if args.save else None
