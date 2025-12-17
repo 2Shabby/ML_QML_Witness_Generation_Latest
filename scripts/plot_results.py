@@ -59,20 +59,22 @@ def ensure_figures_dir():
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def load_latest_results(pattern: str, results_dir: Path = RESULTS_DIR) -> Optional[Dict]:
+def load_latest_results(pattern: str, results_dir: Path = RESULTS_DIR, silent: bool = False) -> Optional[Dict]:
     """
     Load the most recent results file matching a pattern.
 
     Args:
         pattern: Glob pattern for results files (e.g., 'ablation_study_*.json')
         results_dir: Directory containing results
+        silent: If True, don't log warnings for missing files
 
     Returns:
         Loaded results dictionary or None
     """
     files = sorted(glob(str(results_dir / pattern)))
     if not files:
-        logger.warning(f"No files matching '{pattern}' found in {results_dir}")
+        if not silent:
+            logger.warning(f"No files matching '{pattern}' found in {results_dir}")
         return None
 
     latest_file = files[-1]
@@ -704,6 +706,10 @@ def plot_model_comparison(results: Dict, save_path: Optional[Path] = None):
 def plot_all_from_directory(results_dir: Path, save_figures: bool = True):
     """
     Generate all available plots from results in a directory.
+
+    Uses a category-based approach: for each experiment type, tries multiple
+    patterns in order (transformer comparison first, then SVM-only fallback).
+    Only warns once per category if no results found.
     """
     if not MATPLOTLIB_AVAILABLE:
         logger.error("Matplotlib required for plotting")
@@ -712,42 +718,61 @@ def plot_all_from_directory(results_dir: Path, save_figures: bool = True):
     ensure_figures_dir()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Try to load and plot each type of results
-    # Include both SVM-only and transformer comparison results
-    plot_configs = [
-        # Ablation experiments
-        ('ablation_study_*.json', 'ablation_svm', plot_ablation_study),
-        ('ablation_comparison_*.json', 'ablation_all_models', plot_ablation_study),
-        # Cross-validation experiments
-        ('cross_validation_*.json', 'cross_validation_svm', plot_cross_validation),
-        ('cv_comparison_*.json', 'cv_comparison_all_models', plot_cross_validation),
-        # Per-family experiments
-        ('per_family_analysis_*.json', 'per_family_svm', plot_per_family),
-        ('per_family_comparison_*.json', 'per_family_all_models', plot_per_family),
-        # Noise robustness
-        ('noise_robustness_*.json', 'noise_robustness', plot_noise_robustness),
-        # Witness analysis
-        ('witness_coefficients_*.json', 'witness_coefficients_svm', plot_witness_coefficients),
-        ('witness_analysis_*.json', 'witness_analysis_transformer', plot_witness_coefficients),
-        # Model comparison (transformer vs SVM)
-        ('model_comparison_*.json', 'model_comparison', plot_model_comparison),
+    # Define experiment categories with alternative patterns (try in order)
+    # Each category has: (category_name, [(pattern, plot_name), ...], plot_function)
+    experiment_categories = [
+        ('ablation', [
+            ('ablation_comparison_*.json', 'ablation_all_models'),  # Transformer first
+            ('ablation_study_*.json', 'ablation_svm'),
+        ], plot_ablation_study),
+        ('cross_validation', [
+            ('cv_comparison_*.json', 'cv_comparison_all_models'),
+            ('cross_validation_*.json', 'cross_validation_svm'),
+        ], plot_cross_validation),
+        ('per_family', [
+            ('per_family_comparison_*.json', 'per_family_all_models'),
+            ('per_family_analysis_*.json', 'per_family_svm'),
+        ], plot_per_family),
+        ('noise_robustness', [
+            ('noise_robustness_*.json', 'noise_robustness'),
+        ], plot_noise_robustness),
+        ('witness', [
+            ('witness_analysis_*.json', 'witness_analysis_transformer'),
+            ('witness_coefficients_*.json', 'witness_coefficients_svm'),
+        ], plot_witness_coefficients),
+        ('model_comparison', [
+            ('model_comparison_*.json', 'model_comparison'),
+        ], plot_model_comparison),
     ]
 
     plots_generated = 0
+    categories_missing = []
 
-    for pattern, name, plot_func in plot_configs:
-        results = load_latest_results(pattern, results_dir)
-        if results:
-            save_path = FIGURES_DIR / f"{name}_{timestamp}.png" if save_figures else None
-            try:
-                plot_func(results, save_path)
-                plots_generated += 1
-            except Exception as e:
-                logger.error(f"Error plotting {name}: {e}")
+    for category_name, patterns, plot_func in experiment_categories:
+        # Try each pattern in order until we find results (silently)
+        found = False
+        for pattern, plot_name in patterns:
+            results = load_latest_results(pattern, results_dir, silent=True)
+            if results:
+                save_path = FIGURES_DIR / f"{plot_name}_{timestamp}.png" if save_figures else None
+                try:
+                    plot_func(results, save_path)
+                    plots_generated += 1
+                    found = True
+                    break  # Stop after first successful pattern in category
+                except Exception as e:
+                    logger.error(f"Error plotting {plot_name}: {e}")
 
+        if not found:
+            categories_missing.append(category_name)
+
+    # Summary
     logger.info(f"Generated {plots_generated} plots")
 
-    if save_figures:
+    if categories_missing:
+        logger.info(f"No results found for: {', '.join(categories_missing)}")
+
+    if save_figures and plots_generated > 0:
         logger.info(f"Figures saved to: {FIGURES_DIR}")
 
 
@@ -756,9 +781,9 @@ def plot_all_from_directory(results_dir: Path, save_figures: bool = True):
 # =============================================================================
 
 def load_first_available(patterns: List[str], results_dir: Path):
-    """Try multiple patterns and return the first results found."""
+    """Try multiple patterns in order and return the first results found (silently)."""
     for pattern in patterns:
-        results = load_latest_results(pattern, results_dir)
+        results = load_latest_results(pattern, results_dir, silent=True)
         if results:
             return results
     return None
@@ -860,7 +885,7 @@ def plot_summary_dashboard(results_dir: Path, save_path: Optional[Path] = None):
 
     # 4. Noise robustness (middle-left)
     ax4 = fig.add_subplot(gs[1, 0])
-    noise = load_latest_results('noise_robustness_*.json', results_dir)
+    noise = load_latest_results('noise_robustness_*.json', results_dir, silent=True)
     if noise:
         levels = sorted([float(k) for k in noise['per_noise_level'].keys()])
         accs = [noise['per_noise_level'][str(n)]['accuracy'] for n in levels]
@@ -913,7 +938,7 @@ def plot_summary_dashboard(results_dir: Path, save_path: Optional[Path] = None):
 
     # 7. Model comparison (bottom, spanning full width)
     ax7 = fig.add_subplot(gs[2, :])
-    comparison = load_latest_results('model_comparison_*.json', results_dir)
+    comparison = load_latest_results('model_comparison_*.json', results_dir, silent=True)
     if comparison and 'models' in comparison:
         models = comparison['models']
         model_names = [k.upper() for k in models.keys() if 'error' not in models[k]]
@@ -1030,10 +1055,10 @@ Examples:
         if args.results_file:
             results = load_results_file(args.results_file)
         else:
-            # Try each pattern until we find results
+            # Try each pattern until we find results (silently)
             results = None
             for pattern in patterns:
-                results = load_latest_results(pattern, results_dir)
+                results = load_latest_results(pattern, results_dir, silent=True)
                 if results:
                     break
 
@@ -1041,7 +1066,8 @@ Examples:
             save_path = FIGURES_DIR / f"{args.plot}_{timestamp}.png" if args.save else None
             plot_func(results, save_path)
         else:
-            logger.error(f"No results found for {args.plot}")
+            # Only show error with pattern list when nothing found
+            logger.error(f"No results found for '{args.plot}'. Tried patterns: {patterns}")
             sys.exit(1)
 
 
