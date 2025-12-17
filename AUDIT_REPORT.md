@@ -2,13 +2,15 @@
 
 **Date:** December 17, 2025
 **Auditor:** Claude (Automated Audit Session)
-**Branch:** claude/audit-npt-oracle-QYAkM
+**Branch:** claude/audit-centralize-config-z3LJP
 
 ---
 
 ## Executive Summary
 
-All 32 tests pass. The NPT distillability oracle is mathematically correct and the complete 3-qubit distillability witness learning pipeline is operational. Test accuracy of **87%** significantly exceeds the 55% threshold. No critical bugs were found.
+All 56 tests pass. The NPT distillability oracle is mathematically correct and the complete 3-qubit distillability witness learning pipeline is operational. Test accuracy of **87%** significantly exceeds the 55% threshold. No critical bugs were found.
+
+**Update (v2):** Centralization audit completed - configuration, utilities, and visualization pipeline unified.
 
 ---
 
@@ -16,11 +18,14 @@ All 32 tests pass. The NPT distillability oracle is mathematically correct and t
 
 | Criterion | Result | Notes |
 |-----------|--------|-------|
-| All 32 tests pass | ✅ PASS | 100% pass rate |
+| All 56 tests pass | ✅ PASS | 100% pass rate |
 | NPT oracle logic correct | ✅ PASS | All bipartitions verified |
 | Dataset class balance | ✅ PASS | 80/20 split is physically expected |
 | Pipeline accuracy >55% | ✅ PASS | Achieved 87% |
 | No obvious bugs | ✅ PASS | Edge cases verified |
+| Centralized config | ✅ PASS | src/config.py with dataclasses |
+| Unified utilities | ✅ PASS | Logging, timing, seeds in src/utils/ |
+| Visualization pipeline | ✅ PASS | scripts/plot_results.py operational |
 
 ---
 
@@ -147,15 +152,79 @@ for noise_max in [0.2, 0.3, 0.5, 0.7]:
 
 ---
 
+## Centralization Audit (v2 - December 17, 2025)
+
+### 7. Configuration Centralization
+
+**Status:** ✅ Verified Complete
+
+| Component | File | Description |
+|-----------|------|-------------|
+| `ExperimentConfig` | `src/config.py` | Dataset size, noise range, CV folds |
+| `SVMConfig` | `src/config.py` | Kernel, C parameter, random state |
+| `TransformerConfig` | `src/config.py` | Architecture hyperparameters |
+| Path constants | `src/config.py` | PROJECT_ROOT, RESULTS_DIR, DATA_DIR |
+
+**Benefits:**
+- Single source of truth for all experiment parameters
+- Type-safe configuration with dataclasses
+- Easy to modify defaults without searching multiple files
+
+### 8. Utilities Consolidation
+
+**Status:** ✅ Verified Complete
+
+| Function | Location | Purpose |
+|----------|----------|---------|
+| `set_seed(seed)` | `src/utils/__init__.py` | Reproducibility across numpy, random, torch |
+| `setup_logging(name)` | `src/utils/__init__.py` | Consistent log format |
+| `get_timestamp()` | `src/utils/__init__.py` | ISO timestamps for results |
+| `Timer` | `src/utils/__init__.py` | Context manager for timing |
+
+### 9. Visualization Pipeline
+
+**Status:** ✅ Verified Complete
+
+| Plot Type | Function | Description |
+|-----------|----------|-------------|
+| Ablation | `plot_ablation_study()` | 36D vs 63D comparison |
+| Cross-validation | `plot_cross_validation()` | Multi-seed stability |
+| Per-family | `plot_per_family()` | GHZ/W/Cluster/Random/Product accuracy |
+| Noise robustness | `plot_noise_robustness()` | Accuracy vs noise curves |
+| Witness coefficients | `plot_witness_coefficients()` | Pauli term importance |
+| Model comparison | `plot_model_comparison()` | SVM vs Transformer |
+| Dashboard | `plot_summary_dashboard()` | Single comprehensive figure |
+
+**Features:**
+- Category-based pattern matching (transformer first, SVM fallback)
+- Silent loading to reduce warning noise
+- Automatic figure saving to `figures/` directory
+
+### 10. Code Deduplication
+
+**Status:** ✅ Verified Complete
+
+| Before | After | Reduction |
+|--------|-------|-----------|
+| Scattered config in scripts | `src/config.py` | Centralized |
+| Duplicate witness extraction | `src/ml_models/witness_utils.py` | Shared code |
+| Inconsistent logging | `src/utils/__init__.py` | Unified format |
+| Hardcoded paths | Path constants | Configurable |
+
+---
+
 ## Conclusion
 
 **The NPT oracle implementation is verified correct and the 3-qubit distillability pipeline is production-ready.**
 
 All success criteria have been met:
-- ✅ All 32 tests pass
+- ✅ All 56 tests pass
 - ✅ NPT oracle logic confirmed correct
 - ✅ Dataset produces reasonable class balance
 - ✅ Integration pipeline achieves >55% accuracy (87%)
 - ✅ No obvious bugs or edge cases identified
+- ✅ Configuration centralized in `src/config.py`
+- ✅ Utilities unified in `src/utils/__init__.py`
+- ✅ Visualization pipeline operational in `scripts/plot_results.py`
 
-The codebase is ready for training experiments and ablation studies as outlined in GOAL.md.
+The codebase is ready for training experiments, ablation studies, and publication-quality visualizations as outlined in GOAL.md.

@@ -1,9 +1,9 @@
 # CANONICAL: Current Codebase Status
 
 **Document Status:** CANONICAL
-**Version:** 6.0
+**Version:** 7.0
 **Last Updated:** December 17, 2025
-**Aligned With:** GOAL.md v1.0
+**Aligned With:** GOAL.md v2.0
 
 > This document describes the current state of the codebase relative to the canonical research goal: learning restricted witnesses for three-qubit distillability.
 
@@ -11,12 +11,14 @@
 
 ## Executive Summary
 
-### FULL PIPELINE COMPLETE WITH TRANSFORMER + DPS ORACLES
+### FULL PIPELINE COMPLETE WITH CENTRALIZED ARCHITECTURE
 
 The codebase has **all critical components implemented and verified** for the 3-qubit distillability witness learning pipeline as specified in GOAL.md, now with:
+- **Centralized configuration** via `src/config.py` dataclasses
+- **Unified utilities** in `src/utils/__init__.py`
+- **Visualization pipeline** with `scripts/plot_results.py`
 - **Transformer-based pipeline** for comparison with SVM
 - **DPS Level 2 oracle** for rigorous SDP-based labeling
-- **Adversarial investigation** confirming no negative results
 
 | Metric | Value | Status |
 |--------|-------|--------|
@@ -25,7 +27,8 @@ The codebase has **all critical components implemented and verified** for the 3-
 | NPT oracle | Verified correct | ✅ |
 | DPS Level 2 oracle | Implemented | ✅ |
 | SVM Pipeline | Production ready | ✅ |
-| Transformer Pipeline | Ready for testing | ✅ |
+| Transformer Pipeline | Production ready | ✅ |
+| Visualization | Complete | ✅ |
 | 36D vs 63D gap | -1.1% (36D wins) | ✅ |
 
 ### Alignment with GOAL.md
@@ -73,7 +76,7 @@ See [AUDIT_REPORT.md](AUDIT_REPORT.md) for full details.
 ```
 ML_QML_Witness_Generation/
 ├── GOAL.md                              ✅ CANONICAL research objective
-├── CURRENT_STATUS.md                    ✅ CANONICAL (this document, v6.0)
+├── CURRENT_STATUS.md                    ✅ CANONICAL (this document, v7.0)
 ├── INITIAL_FINDINGS.md                  ✅ Experimental results + conclusions
 ├── AUDIT_REPORT.md                      ✅ Verification results
 ├── RESTRUCTURE_PLAN.md                  ✅ Historical reference
@@ -82,6 +85,7 @@ ML_QML_Witness_Generation/
 │
 ├── src/
 │   ├── __init__.py
+│   ├── config.py                        ✅ NEW: Centralized configuration (dataclasses)
 │   ├── quantum_states/
 │   │   ├── __init__.py                  ✅ Exports all generators + oracles
 │   │   ├── state_generation.py          ✅ NPT oracle + all generators
@@ -92,15 +96,20 @@ ML_QML_Witness_Generation/
 │   ├── ml_models/
 │   │   ├── __init__.py                  ✅ Exports SVM + Transformer learners
 │   │   ├── svm_witness.py               ✅ Ready (witness extraction)
-│   │   └── transformer_witness.py       ✅ Transformer + Hybrid witness
+│   │   ├── transformer_witness.py       ✅ Transformer + Hybrid witness
+│   │   └── witness_utils.py             ✅ NEW: Shared witness utilities
 │   └── utils/
-│       └── __init__.py                  ✅ Minimal (set_seed only)
+│       └── __init__.py                  ✅ ENHANCED: Logging, seeds, timing
 │
 ├── scripts/
 │   ├── run_experiments.py               ✅ SVM experiments
 │   ├── run_transformer_experiments.py   ✅ Transformer vs SVM comparison
-│   ├── analyze_results.py               ✅ Results analysis
+│   ├── plot_results.py                  ✅ NEW: Visualization and plotting
+│   ├── run_comparative_analysis.py      ✅ NEW: Model comparison analysis
 │   └── investigate_negative_results.py  ✅ Adversarial noise investigation
+│
+├── results/                             ✅ Experiment results (JSON)
+├── figures/                             ✅ Generated plots (PNG)
 │
 └── tests/
     ├── __init__.py
@@ -114,6 +123,38 @@ ML_QML_Witness_Generation/
 ---
 
 ## Module Status (Detailed)
+
+### 0. Centralized Configuration (NEW in v7.0)
+
+**File:** `src/config.py` (~150 lines)
+**GOAL Alignment:** ✅ INFRASTRUCTURE
+
+Provides centralized configuration using Python dataclasses:
+
+| Class | Description |
+|-------|-------------|
+| `ExperimentConfig` | n_samples, noise_range, n_folds, seeds |
+| `SVMConfig` | kernel, C, random_state |
+| `TransformerConfig` | d_model, n_heads, n_layers, epochs, etc. |
+
+**Key Constants:**
+- `DEFAULT_N_SAMPLES`: 2000
+- `DEFAULT_NOISE_RANGE`: (0.0, 0.5)
+- `DEFAULT_CV_FOLDS`: 5
+- `RESULTS_DIR`: Path to results/
+- `PROJECT_ROOT`: Path to project root
+
+### 0b. Utilities Module (ENHANCED in v7.0)
+
+**File:** `src/utils/__init__.py` (~100 lines)
+**GOAL Alignment:** ✅ INFRASTRUCTURE
+
+| Function | Description |
+|----------|-------------|
+| `set_seed(seed)` | Set random seeds for reproducibility |
+| `setup_logging(name, level)` | Consistent logging configuration |
+| `get_timestamp()` | ISO format timestamps for results |
+| `Timer` context manager | Measure execution time of code blocks |
 
 ### 1. Quantum State Generation
 
@@ -282,34 +323,36 @@ python3 -m pytest tests/test_integration.py::TestIntegration::test_3qubit_distil
 
 ## What's Next
 
-The codebase is **ready for**:
-1. **Transformer vs SVM comparison experiments** (run `scripts/run_transformer_experiments.py`)
-2. Witness coefficient analysis: compare SVM vs Hybrid Transformer witnesses
-3. Scale to 4+ qubits to test if findings generalize
+The codebase is **ready for production use**:
+1. **Run experiments** with `scripts/run_experiments.py` and `scripts/run_transformer_experiments.py`
+2. **Generate visualizations** with `scripts/plot_results.py`
+3. **Compare models** with `scripts/run_comparative_analysis.py`
 
 **Experiment Commands:**
 ```bash
-# Transformer vs SVM comparison
-python scripts/run_transformer_experiments.py --experiment comparison --n-samples 5000
+# Run all SVM experiments
+python scripts/run_experiments.py --experiment all --n-samples 5000
 
-# Cross-validation comparison
-python scripts/run_transformer_experiments.py --experiment cv --n-samples 5000
+# Run all transformer experiments (comparison, CV, family, ablation, witness)
+python scripts/run_transformer_experiments.py --experiment all --n-samples 5000
 
-# Scaling study
-python scripts/run_transformer_experiments.py --experiment scaling
+# Generate all plots
+python scripts/plot_results.py --plot all --save
 
-# Witness analysis
-python scripts/run_transformer_experiments.py --experiment witness --n-samples 5000
+# Generate summary dashboard
+python scripts/plot_results.py --plot dashboard --save
 
-# Adversarial investigation (already completed - see INITIAL_FINDINGS.md)
-python scripts/investigate_negative_results.py
+# Run comparative analysis
+python scripts/run_comparative_analysis.py
 ```
 
 **Completed ✅ (see INITIAL_FINDINGS.md):**
 - Ablation study: 36D vs 63D (36D wins by 1.1%)
 - Adversarial noise investigation (no negative results found)
 - DPS Level 2 oracle implementation
-- Per-family accuracy analysis
+- Per-family accuracy analysis (GHZ, W, Cluster, Random, Product)
+- Centralized configuration architecture
+- Visualization pipeline
 
 **Future work (optional):**
 - L1-regularized sparse SVM for minimal witnesses (<20 terms)
@@ -331,12 +374,25 @@ python scripts/investigate_negative_results.py
 - ✅ 56 tests passing across all modules
 - ✅ **Hypothesis validated:** 36D restricted features match/exceed 63D full features
 - ✅ **No negative results found** in adversarial investigation
+- ✅ **Centralized configuration** in `src/config.py` with dataclasses
+- ✅ **Unified utilities** with logging, timing, and reproducibility
+- ✅ **Visualization pipeline** for experiment results
 
 ### Key Result
 
 > **36D restricted (1+2 body Pauli) features achieve 85.3% accuracy on 3-qubit distillability classification, matching or exceeding 63D full features with no significant difference (p=0.148).**
 
 See [INITIAL_FINDINGS.md](INITIAL_FINDINGS.md) for full experimental results.
+
+---
+
+## Version History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 7.0 | Dec 17, 2025 | Centralized config, utilities, visualization pipeline |
+| 6.0 | Dec 17, 2025 | Transformer pipeline, DPS Level 2 oracle |
+| 5.0 | Dec 17, 2025 | NPT oracle verification, audit complete |
 
 ---
 
