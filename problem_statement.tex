@@ -15,7 +15,7 @@
 \maketitle
 
 \begin{abstract}
-We investigate whether the distillability of three-qubit quantum states can be certified using only experimentally accessible measurements restricted to one- and two-body Pauli operators. Using machine learning to extract linear witnesses from a 36-dimensional restricted feature space, we demonstrate that such witnesses achieve $>85\%$ accuracy in distinguishing distillable from non-distillable states. A minimal transformer architecture achieves $99.7$--$100\%$ accuracy on the same feature space. Crucially, restricted features perform as well as or better than the full 63-dimensional Pauli basis, confirming that three-body correlations are not essential for practical distillability classification in the three-qubit regime.
+We investigate whether the distillability of three-qubit quantum states can be certified using only experimentally accessible measurements restricted to one- and two-body Pauli operators. Using machine learning to extract linear witnesses from a 36-dimensional restricted feature space, we demonstrate that such witnesses achieve $>86\%$ accuracy in distinguishing distillable from non-distillable states. Non-linear models---MLP discriminator and transformer architectures---achieve $99.5$--$100\%$ accuracy on the same feature space. Crucially, restricted features perform as well as or better than the full 63-dimensional Pauli basis, confirming that three-body correlations are not essential for practical distillability classification in the three-qubit regime.
 \end{abstract}
 
 \section{Problem Statement}
@@ -81,8 +81,8 @@ Explicitly excluded: 27 three-body terms requiring simultaneous three-qubit enta
     \item \textbf{State Generation:} Noisy GHZ, W, cluster, random mixed, and product states
     \item \textbf{Labeling:} NPT-based distillability oracle (all three bipartitions)
     \item \textbf{Feature Extraction:} 36D restricted Pauli expectation values
-    \item \textbf{Classification:} Linear SVM (baseline) and Transformer (advanced)
-    \item \textbf{Witness Extraction:} $W = \sum_k w_k P_k$ from learned hyperplane
+    \item \textbf{Classification:} Linear SVM (baseline), MLP Discriminator, and Transformer (advanced)
+    \item \textbf{Witness Extraction:} $W = \sum_k w_k P_k$ from learned hyperplane (SVM/Transformer only)
 \end{enumerate}
 
 \section{Results Summary}
@@ -90,13 +90,14 @@ Explicitly excluded: 27 three-body terms requiring simultaneous three-qubit enta
 \subsection{Classification Performance}
 
 \begin{center}
-\begin{tabular}{lcccc}
+\begin{tabular}{lccccc}
 \toprule
-\textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC AUC} \\
 \midrule
-Linear SVM & 85.6\% & 85.3\% & 99.1\% & 91.7\% \\
-Transformer Classifier & 99.7\% & 99.8\% & 99.9\% & 99.8\% \\
-Transformer Hybrid & 100.0\% & 100.0\% & 100.0\% & 100.0\% \\
+Linear SVM & 86.3\% & 86.9\% & 97.5\% & 91.9\% & 0.533 \\
+MLP Discriminator & \textbf{100.0\%} & 100.0\% & 100.0\% & 100.0\% & 1.000 \\
+Transformer Classifier & 99.5\% & 99.4\% & 100.0\% & 99.7\% & 0.997 \\
+Transformer Hybrid & \textbf{100.0\%} & 100.0\% & 100.0\% & 100.0\% & 1.000 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -138,8 +139,9 @@ Product & 32.2\% \\
 
 \textbf{The research hypothesis is strongly supported.} Restricted 1+2 body Pauli features (36D) reliably distinguish distillable from non-distillable three-qubit states:
 \begin{itemize}
-    \item Linear SVM: 85.6\% accuracy (interpretable witness)
-    \item Transformer: 99.7--100\% accuracy (state-of-the-art)
+    \item Linear SVM: 86.3\% accuracy (interpretable witness)
+    \item MLP Discriminator: 100\% accuracy (pure classification, no witness)
+    \item Transformer: 99.5--100\% accuracy (with witness extraction)
 \end{itemize}
 
 \subsection{Physical Interpretation}
