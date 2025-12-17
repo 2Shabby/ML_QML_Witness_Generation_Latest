@@ -854,12 +854,17 @@ Examples:
         help='Directory to save results (default: results/)'
     )
 
-    # Transformer hyperparameters
-    parser.add_argument('--d-model', type=int, default=64, help='Transformer hidden dimension')
-    parser.add_argument('--n-heads', type=int, default=4, help='Number of attention heads')
-    parser.add_argument('--n-layers', type=int, default=2, help='Number of transformer layers')
-    parser.add_argument('--batch-size', type=int, default=64, help='Training batch size')
-    parser.add_argument('--n-epochs', type=int, default=100, help='Maximum training epochs')
+    # Transformer hyperparameters (use centralized defaults)
+    parser.add_argument('--d-model', type=int, default=DEFAULT_TRANSFORMER_CONFIG['d_model'],
+                        help='Transformer hidden dimension (default: 16)')
+    parser.add_argument('--n-heads', type=int, default=DEFAULT_TRANSFORMER_CONFIG['n_heads'],
+                        help='Number of attention heads (default: 2)')
+    parser.add_argument('--n-layers', type=int, default=DEFAULT_TRANSFORMER_CONFIG['n_layers'],
+                        help='Number of transformer layers (default: 1)')
+    parser.add_argument('--batch-size', type=int, default=DEFAULT_TRANSFORMER_CONFIG['batch_size'],
+                        help='Training batch size (default: 64)')
+    parser.add_argument('--n-epochs', type=int, default=DEFAULT_TRANSFORMER_CONFIG['n_epochs'],
+                        help='Maximum training epochs (default: 100)')
 
     args = parser.parse_args()
 
