@@ -715,13 +715,21 @@ def plot_all_from_directory(results_dir: Path, save_figures: bool = True):
     # Try to load and plot each type of results
     # Include both SVM-only and transformer comparison results
     plot_configs = [
+        # Ablation experiments
         ('ablation_study_*.json', 'ablation_svm', plot_ablation_study),
         ('ablation_comparison_*.json', 'ablation_all_models', plot_ablation_study),
-        ('cross_validation_*.json', 'cross_validation', plot_cross_validation),
+        # Cross-validation experiments
+        ('cross_validation_*.json', 'cross_validation_svm', plot_cross_validation),
+        ('cv_comparison_*.json', 'cv_comparison_all_models', plot_cross_validation),
+        # Per-family experiments
         ('per_family_analysis_*.json', 'per_family_svm', plot_per_family),
         ('per_family_comparison_*.json', 'per_family_all_models', plot_per_family),
+        # Noise robustness
         ('noise_robustness_*.json', 'noise_robustness', plot_noise_robustness),
-        ('witness_coefficients_*.json', 'witness_coefficients', plot_witness_coefficients),
+        # Witness analysis
+        ('witness_coefficients_*.json', 'witness_coefficients_svm', plot_witness_coefficients),
+        ('witness_analysis_*.json', 'witness_analysis_transformer', plot_witness_coefficients),
+        # Model comparison (transformer vs SVM)
         ('model_comparison_*.json', 'model_comparison', plot_model_comparison),
     ]
 
@@ -747,9 +755,19 @@ def plot_all_from_directory(results_dir: Path, save_figures: bool = True):
 # SUMMARY DASHBOARD (Single Figure)
 # =============================================================================
 
+def load_first_available(patterns: List[str], results_dir: Path):
+    """Try multiple patterns and return the first results found."""
+    for pattern in patterns:
+        results = load_latest_results(pattern, results_dir)
+        if results:
+            return results
+    return None
+
+
 def plot_summary_dashboard(results_dir: Path, save_path: Optional[Path] = None):
     """
     Create a single comprehensive dashboard with all key results.
+    Tries transformer comparison results first, then falls back to SVM-only.
     """
     if not MATPLOTLIB_AVAILABLE:
         logger.error("Matplotlib required for plotting")
@@ -760,52 +778,84 @@ def plot_summary_dashboard(results_dir: Path, save_path: Optional[Path] = None):
     # Create grid for subplots
     gs = fig.add_gridspec(3, 3, hspace=0.35, wspace=0.3)
 
-    # 1. Ablation study (top-left)
+    # 1. Ablation study (top-left) - try transformer first, then SVM
     ax1 = fig.add_subplot(gs[0, 0])
-    ablation = load_latest_results('ablation_study_*.json', results_dir)
+    ablation = load_first_available(['ablation_comparison_*.json', 'ablation_study_*.json'], results_dir)
     if ablation:
+        # Check if multi-model (transformer) or single-model (SVM)
+        if 'models' in ablation:
+            # Multi-model: show first model's 36D vs 63D
+            first_model = list(ablation['models'].keys())[0]
+            r36 = ablation['models'][first_model]['restricted_36d']
+            r63 = ablation['models'][first_model]['full_63d']
+            title = f'Ablation: 36D vs 63D ({first_model.upper()})'
+        else:
+            r36 = ablation['restricted_36d']
+            r63 = ablation['full_63d']
+            title = 'Ablation: 36D vs 63D'
+
         metrics = ['Acc', 'Prec', 'Rec', 'F1']
         x = np.arange(len(metrics))
         width = 0.35
-        r36 = ablation['restricted_36d']
-        r63 = ablation['full_63d']
-        ax1.bar(x - width/2, [r36['accuracy_mean'], r36['precision_mean'],
-                              r36['recall_mean'], r36['f1_mean']],
+        ax1.bar(x - width/2, [r36['accuracy_mean'], r36.get('precision_mean', 0),
+                              r36.get('recall_mean', 0), r36.get('f1_mean', 0)],
                width, label='36D', color='#2ecc71', alpha=0.8)
-        ax1.bar(x + width/2, [r63['accuracy_mean'], r63['precision_mean'],
-                              r63['recall_mean'], r63['f1_mean']],
+        ax1.bar(x + width/2, [r63['accuracy_mean'], r63.get('precision_mean', 0),
+                              r63.get('recall_mean', 0), r63.get('f1_mean', 0)],
                width, label='63D', color='#3498db', alpha=0.8)
         ax1.set_xticks(x)
         ax1.set_xticklabels(metrics)
         ax1.set_ylabel('Score')
-        ax1.set_title('Ablation: 36D vs 63D')
+        ax1.set_title(title)
         ax1.legend(fontsize=8)
         ax1.set_ylim(0, 1.1)
 
     # 2. Cross-validation (top-middle)
     ax2 = fig.add_subplot(gs[0, 1])
-    cv = load_latest_results('cross_validation_*.json', results_dir)
+    cv = load_first_available(['cv_comparison_*.json', 'cross_validation_*.json'], results_dir)
     if cv:
-        seeds = [r['seed'] for r in cv['per_seed_results']]
-        accs = [r['accuracy'] for r in cv['per_seed_results']]
-        ax2.bar(range(len(seeds)), accs, color='#9b59b6', alpha=0.8)
-        ax2.axhline(cv['aggregate_statistics']['accuracy_mean'], color='red',
-                   linestyle='--', label=f"Mean: {cv['aggregate_statistics']['accuracy_mean']:.3f}")
-        ax2.set_xlabel('Seed Index')
-        ax2.set_ylabel('Accuracy')
-        ax2.set_title('Cross-Validation Stability')
-        ax2.legend(fontsize=8)
+        if 'per_seed_results' in cv:
+            # SVM format
+            seeds = [r['seed'] for r in cv['per_seed_results']]
+            accs = [r['accuracy'] for r in cv['per_seed_results']]
+            mean_acc = cv['aggregate_statistics']['accuracy_mean']
+        elif 'models' in cv:
+            # Transformer CV format - show first model's fold accuracies
+            first_model = list(cv['models'].keys())[0]
+            accs = cv['models'][first_model]['fold_accuracies']
+            seeds = list(range(1, len(accs) + 1))
+            mean_acc = cv['models'][first_model]['accuracy_mean']
+        else:
+            seeds, accs, mean_acc = [], [], 0
+
+        if accs:
+            ax2.bar(range(len(seeds)), accs, color='#9b59b6', alpha=0.8)
+            ax2.axhline(mean_acc, color='red', linestyle='--', label=f"Mean: {mean_acc:.3f}")
+            ax2.set_xlabel('Fold/Seed Index')
+            ax2.set_ylabel('Accuracy')
+            ax2.set_title('Cross-Validation Stability')
+            ax2.legend(fontsize=8)
 
     # 3. Per-family (top-right)
     ax3 = fig.add_subplot(gs[0, 2])
-    family = load_latest_results('per_family_analysis_*.json', results_dir)
+    family = load_first_available(['per_family_comparison_*.json', 'per_family_analysis_*.json'], results_dir)
     if family:
         families = list(family['per_family'].keys())
-        accs = [family['per_family'][f]['accuracy'] for f in families]
+        first_family = family['per_family'][families[0]]
+
+        # Check if multi-model
+        if 'models' in first_family:
+            # Multi-model: use SVM accuracy for dashboard simplicity
+            accs = [family['per_family'][f]['models']['svm']['accuracy'] for f in families]
+            title = 'Accuracy by State Family (SVM)'
+        else:
+            accs = [family['per_family'][f]['accuracy'] for f in families]
+            title = 'Accuracy by State Family'
+
         colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6']
-        ax3.bar(families, accs, color=colors, alpha=0.8)
+        ax3.bar(families, accs, color=colors[:len(families)], alpha=0.8)
         ax3.set_ylabel('Accuracy')
-        ax3.set_title('Accuracy by State Family')
+        ax3.set_title(title)
         ax3.set_xticklabels([f.upper() for f in families], rotation=45, ha='right')
 
     # 4. Noise robustness (middle-left)
@@ -823,28 +873,43 @@ def plot_summary_dashboard(results_dir: Path, save_path: Optional[Path] = None):
 
     # 5. Witness coefficients - top terms (middle-center)
     ax5 = fig.add_subplot(gs[1, 1])
-    witness = load_latest_results('witness_coefficients_*.json', results_dir)
+    witness = load_first_available(['witness_analysis_*.json', 'witness_coefficients_*.json'], results_dir)
     if witness:
-        top = witness['ranked_coefficients'][:10]
-        paulis = [c['pauli'] for c in top]
-        values = [c['coefficient'] for c in top]
-        signs = [c['sign'] for c in top]
-        colors = ['#2ecc71' if s == '+' else '#e74c3c' for s in signs]
-        ax5.barh(range(len(paulis)), values, color=colors, alpha=0.8)
-        ax5.set_yticks(range(len(paulis)))
-        ax5.set_yticklabels(paulis, fontsize=7, fontfamily='monospace')
-        ax5.set_xlabel('|Coefficient|')
-        ax5.set_title('Top 10 Pauli Terms')
-        ax5.invert_yaxis()
+        # Handle transformer witness format (has 'witnesses' key) or SVM format
+        if 'witnesses' in witness:
+            # Transformer format - use SVM witness for dashboard
+            if 'svm' in witness['witnesses']:
+                top = witness['witnesses']['svm'].get('top_coefficients', [])[:10]
+                paulis = [c[0] for c in top]  # Format is [pauli, coeff]
+                values = [abs(c[1]) for c in top]
+                signs = ['+' if c[1] >= 0 else '-' for c in top]
+            else:
+                top, paulis, values, signs = [], [], [], []
+        else:
+            # SVM format
+            top = witness.get('ranked_coefficients', [])[:10]
+            paulis = [c['pauli'] for c in top]
+            values = [c['coefficient'] for c in top]
+            signs = [c['sign'] for c in top]
+
+        if paulis:
+            colors = ['#2ecc71' if s == '+' else '#e74c3c' for s in signs]
+            ax5.barh(range(len(paulis)), values, color=colors, alpha=0.8)
+            ax5.set_yticks(range(len(paulis)))
+            ax5.set_yticklabels(paulis, fontsize=7, fontfamily='monospace')
+            ax5.set_xlabel('|Coefficient|')
+            ax5.set_title('Top 10 Pauli Terms')
+            ax5.invert_yaxis()
 
     # 6. 1-body vs 2-body importance (middle-right)
     ax6 = fig.add_subplot(gs[1, 2])
-    if witness and 'importance_by_type' in witness:
-        imp = witness['importance_by_type']
-        sizes = [imp.get('one_body_fraction', 0), imp.get('two_body_fraction', 0)]
-        ax6.pie(sizes, labels=['1-Body', '2-Body'], colors=['#3498db', '#e74c3c'],
-               autopct='%1.1f%%', startangle=90)
-        ax6.set_title('Importance by Weight')
+    if witness:
+        imp = witness.get('importance_by_type', {})
+        if imp:
+            sizes = [imp.get('one_body_fraction', 0), imp.get('two_body_fraction', 0)]
+            ax6.pie(sizes, labels=['1-Body', '2-Body'], colors=['#3498db', '#e74c3c'],
+                   autopct='%1.1f%%', startangle=90)
+            ax6.set_title('Importance by Weight')
 
     # 7. Model comparison (bottom, spanning full width)
     ax7 = fig.add_subplot(gs[2, :])
