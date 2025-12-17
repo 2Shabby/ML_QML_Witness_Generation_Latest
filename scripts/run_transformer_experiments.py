@@ -73,12 +73,12 @@ DEFAULT_NOISE_RANGE = (0.0, 0.5)
 DEFAULT_CV_FOLDS = 5
 DEFAULT_SEED = 42
 
-# Transformer hyperparameters
+# Transformer hyperparameters (minimal for 36D binary classification)
 DEFAULT_TRANSFORMER_CONFIG = {
-    'd_model': 64,
-    'n_heads': 4,
-    'n_layers': 2,
-    'd_ff': 128,
+    'd_model': 16,       # Reduced from 64 (36 features don't need large embeddings)
+    'n_heads': 2,        # Reduced from 4
+    'n_layers': 1,       # Reduced from 2 (single layer sufficient)
+    'd_ff': 32,          # Reduced from 128
     'dropout': 0.1,
     'learning_rate': 1e-3,
     'batch_size': 64,
