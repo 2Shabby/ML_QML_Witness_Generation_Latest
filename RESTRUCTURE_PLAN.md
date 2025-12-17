@@ -1,7 +1,7 @@
 # RESTRUCTURE PLAN: Debloating for 3-Qubit Distillability Witnesses
 
-**Document Status:** Planning Document
-**Version:** 1.0
+**Document Status:** ✅ COMPLETED
+**Version:** 2.0
 **Date:** December 17, 2025
 **Aligned With:** GOAL.md v1.0
 
@@ -9,16 +9,26 @@
 
 ## Executive Summary
 
-This document proposes a **non-backward-compatible** restructuring of the codebase to focus exclusively on the GOAL.md objective: **learning restricted witnesses for 3-qubit distillability using 36D (1+2 body Pauli) features**.
+This document describes the **completed** restructuring of the codebase to focus exclusively on the GOAL.md objective: **learning restricted witnesses for 3-qubit distillability using 36D (1+2 body Pauli) features**.
 
-### Key Numbers
+### Debloating Results (COMPLETED)
 
-| Metric | Current | Proposed | Reduction |
-|--------|---------|----------|-----------|
-| Source files | 9 | 4 | 56% |
-| Lines of code | ~1,700 | ~800 | 53% |
-| Config files | 6 | 1 | 83% |
-| Dependencies | 16 | 8 | 50% |
+| Metric | Before | After | Reduction |
+|--------|--------|-------|-----------|
+| Source files | 9 | 5 | 44% |
+| Lines of code | ~1,700 | ~950 | 44% |
+| Config files | 6 | 0 | 100% |
+| Dependencies needed | 16 | 8 | 50% |
+
+### Completed Actions
+
+- ✅ Deleted MLP witness learner (364 lines)
+- ✅ Deleted over-engineered utilities (531 lines)
+- ✅ Deleted all config YAML files (6 files)
+- ✅ Deleted associated tests (test_mlp_witness.py, test_utils.py)
+- ✅ Updated __init__.py files
+- ✅ Updated CURRENT_STATUS.md to v2.0
+- ✅ Updated README.md for focused goal
 
 ---
 
