@@ -47,5 +47,6 @@ Thumbs.db
 logs/
 checkpoints/
 outputs/
+results/*.json
 *.h5
 *.pkl
