@@ -1,315 +1,371 @@
-# Current Codebase Status
+# CANONICAL: Current Codebase Status
 
+**Document Status:** CANONICAL
+**Version:** 1.0
 **Last Updated:** December 17, 2025
-**Overall Completion:** ~25% of original framework, well-positioned for GOAL.md pivot
+**Aligned With:** GOAL.md v1.0
+
+> This document describes the current state of the codebase relative to the canonical research goal: learning restricted witnesses for three-qubit distillability.
 
 ---
 
 ## Executive Summary
 
-This codebase implements a pipeline for learning quantum entanglement witnesses using machine learning. The core flow is:
+### Alignment with GOAL.md
 
-```
-Quantum States (ρ) → Pauli Features (x_ρ) → ML Classifier → Witness Operator (W)
-```
+| GOAL Requirement | Codebase Status | Ready? |
+|------------------|-----------------|--------|
+| 3-qubit quantum states | Code exists, needs validation | ⚠️ |
+| Restricted features (36D, 1+2 body) | `create_sparse_measurement_set('two_body')` | ✅ |
+| Linear SVM classifier | `SVMWitnessLearner` | ✅ |
+| Witness extraction as operator | `get_witness_operator() → SparsePauliOp` | ✅ |
+| Measurement cost estimation | `group_commuting_paulis()` | ✅ |
+| Distillability labeling (NPT) | Not implemented | ❌ |
+| Distillability labeling (DPS) | Not implemented | ❌ |
+| QEC state families | Not implemented | ❌ |
 
-**What Works:** 2-qubit state generation, Pauli feature extraction, linear SVM training, witness extraction as `SparsePauliOp`
+### Bottom Line
 
-**What's Missing:** Distillability oracle, 3-qubit validation, DPS hierarchy, nonlinear witness extraction
+**The core pipeline (features → SVM → witness) is ready.** The main gaps are:
+1. Distillability oracle for labeling
+2. 3-qubit validation
+3. QEC-relevant state generators
+
+**Estimated effort to MVP:** 14-20 hours
 
 ---
 
-## Module-by-Module Status
+## What the Codebase Does
+
+### Core Pipeline
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐     ┌──────────────────┐
+│ Quantum States  │ ──▶ │ Pauli Features   │ ──▶ │ Linear SVM      │ ──▶ │ Witness Operator │
+│ (DensityMatrix) │     │ x_ρ = ⟨P₁⟩...⟨Pₙ⟩│     │ Hyperplane w·x+b│     │ W = Σ wₖPₖ       │
+└─────────────────┘     └──────────────────┘     └─────────────────┘     └──────────────────┘
+        ↑                       ↑                        ↑                       ↑
+   NEEDS WORK              ✅ READY                 ✅ READY                 ✅ READY
+  (3-qubit, QEC)        (36D restricted)         (SVMWitnessLearner)      (SparsePauliOp)
+```
+
+### Key Insight for GOAL.md
+
+The codebase already implements the critical **methodological separation**:
+- **Labeling:** Can use any oracle (currently PPT, need to add NPT/DPS)
+- **Features:** Restricted to specified Pauli subset (1+2 body ready)
+- **Model:** Extracts explicit Hermitian operator, not black-box
+
+---
+
+## Module Status (Detailed)
 
 ### 1. Quantum State Generation
+
 **File:** `src/quantum_states/state_generation.py` (335 lines)
-**Status:** ✅ COMPLETE for 2-qubit, ⚠️ UNTESTED for 3-qubit
+**GOAL Alignment:** Partial
 
-| Function | Status | Notes |
-|----------|--------|-------|
-| `generate_random_density_matrix(n_qubits)` | ✅ Works | Uses Qiskit `random_density_matrix` |
-| `generate_separable_state(n_qubits)` | ✅ Works | Convex combination of product states |
-| `generate_entangled_state(n_qubits, type)` | ✅ Works | Supports 'random', 'bell', 'ghz', 'w' |
-| `generate_bell_state(bell_type)` | ✅ Works | All 4 Bell states |
-| `generate_werner_state(n_qubits, p)` | ✅ Works | Werner parameter p ∈ [0,1] |
-| `generate_dataset(n_qubits, n_samples)` | ✅ Works | Returns (states, labels) |
-| `check_ppt_criterion(rho, dims)` | ✅ Works | Checks ρ^Γ ≥ 0 |
-| `partial_transpose(rho, dims, axis)` | ✅ Works | Computes partial transpose |
+| Function | Works? | 3-Qubit? | GOAL Relevance |
+|----------|--------|----------|----------------|
+| `generate_random_density_matrix(n)` | ✅ | Untested | Random mixed states |
+| `generate_separable_state(n)` | ✅ | Untested | Negative examples |
+| `generate_entangled_state(n, 'ghz')` | ✅ | Untested | QEC resource |
+| `generate_entangled_state(n, 'w')` | ✅ | Untested | QEC resource |
+| `generate_bell_state()` | ✅ | N/A (2-qubit) | Not needed |
+| `generate_werner_state(n, p)` | ✅ | Untested | Benchmark |
+| `generate_dataset(n, samples)` | ✅ | Untested | Training data |
+| `check_ppt_criterion(rho, dims)` | ✅ | Works | Part of NPT proxy |
+| `partial_transpose(rho, dims)` | ✅ | Works | Core primitive |
 
-**For GOAL.md:**
-- GHZ/W states work for any n_qubits (code is parameterized)
-- Need to add: noisy cluster states, bound entangled 3-qubit states
-- Need to validate: 3-qubit generation pipeline
+**For GOAL.md - What's Missing:**
+- [ ] Validation tests for n=3
+- [ ] Noisy cluster state generator
+- [ ] Bound entangled 3-qubit state generator
+- [ ] NPT check across all bipartitions (A|BC, B|AC, C|AB)
 
 ---
 
 ### 2. Feature Extraction
+
 **File:** `src/feature_extraction/pauli_features.py` (273 lines)
-**Status:** ✅ COMPLETE
+**GOAL Alignment:** ✅ READY
 
-| Function | Status | Notes |
-|----------|--------|-------|
-| `get_pauli_basis(n_qubits)` | ✅ Works | Returns 4ⁿ-1 Pauli operators |
-| `extract_pauli_features(rho, basis)` | ✅ Works | x_ρ = (Tr(ρP₁), ..., Tr(ρPₙ)) |
-| `extract_features_batch(states, basis)` | ✅ Works | Efficient batch processing |
-| `create_sparse_measurement_set(n_qubits, strategy)` | ✅ Works | 'local', 'two_body', 'random' |
-| `group_commuting_paulis(pauli_list)` | ✅ Works | Groups for co-measurement |
-| `estimate_measurement_cost(pauli_list)` | ✅ Works | Returns # settings |
+| Function | Status | GOAL Relevance |
+|----------|--------|----------------|
+| `get_pauli_basis(n_qubits)` | ✅ Ready | Full basis (63 for 3-qubit) |
+| `extract_pauli_features(rho, basis)` | ✅ Ready | Feature vector extraction |
+| `extract_features_batch(states, basis)` | ✅ Ready | Efficient batch processing |
+| `create_sparse_measurement_set(n, 'two_body')` | ✅ Ready | **CRITICAL: 36D restricted basis** |
+| `group_commuting_paulis(pauli_list)` | ✅ Ready | Measurement optimization |
+| `estimate_measurement_cost(pauli_list)` | ✅ Ready | Experimental cost metric |
 
-**For GOAL.md:**
-- `create_sparse_measurement_set(n_qubits=3, strategy='two_body')` gives exactly the 36 restricted features needed
-- Ready to use immediately
+**Verification for GOAL.md:**
+```python
+# This should produce exactly 36 features for 3-qubit
+from src.feature_extraction.pauli_features import create_sparse_measurement_set, get_pauli_basis
 
-**Feature counts by system:**
-| System | Full Basis | 1+2 Body Only |
-|--------|------------|---------------|
-| 2-qubit | 15 | 15 (all are ≤2-body) |
-| 3-qubit | 63 | 36 |
-| 4-qubit | 255 | 60 |
+full_basis = get_pauli_basis(3)           # 63 operators
+restricted = create_sparse_measurement_set(3, 'two_body')  # Should be 36
+
+# 1-body: 3 qubits × 3 Paulis = 9
+# 2-body: 3 pairs × 9 combinations = 27
+# Total: 36
+```
 
 ---
 
 ### 3. SVM Witness Learner
+
 **File:** `src/ml_models/svm_witness.py` (327 lines)
-**Status:** ✅ COMPLETE
+**GOAL Alignment:** ✅ READY
 
-| Method | Status | Notes |
-|--------|--------|-------|
-| `__init__(pauli_basis, C, kernel)` | ✅ Works | Configurable regularization |
-| `train(X, y, test_size)` | ✅ Works | Returns metrics dict |
-| `predict(X)` | ✅ Works | Binary predictions |
-| `predict_proba(X)` | ✅ Works | Probability estimates |
-| `decision_function(X)` | ✅ Works | w·x + b values |
-| `get_witness_operator()` | ✅ Works | Returns `SparsePauliOp` |
-| `get_sparse_witness(threshold)` | ✅ Works | Thresholded witness |
-| `evaluate_witness(rho_data, labels)` | ✅ Works | Witness-specific metrics |
-| `get_measurement_cost()` | ✅ Works | # measurement settings |
+| Method | Status | GOAL Relevance |
+|--------|--------|----------------|
+| `__init__(pauli_basis, C, kernel='linear')` | ✅ | Configure with restricted basis |
+| `train(X, y, test_size)` | ✅ | Learn from labeled data |
+| `predict(X)` | ✅ | Binary classification |
+| `get_witness_operator()` | ✅ | **CRITICAL: W = Σ wₖPₖ as SparsePauliOp** |
+| `get_sparse_witness(threshold)` | ✅ | Measurement-efficient witness |
+| `get_measurement_cost()` | ✅ | Experimental feasibility metric |
 
-**For GOAL.md:**
-- Core functionality ready
-- Witness extraction produces valid Qiskit operator
-- Can directly use for 3-qubit restricted witnesses
+**Key for GOAL.md:**
+- Hyperplane extraction directly maps to Hermitian operator
+- Output is Qiskit `SparsePauliOp` - lab-ready
+- Coefficients are interpretable measurement weights
 
 ---
 
 ### 4. MLP Witness Learner
+
 **File:** `src/ml_models/mlp_witness.py` (364 lines)
-**Status:** ⚠️ SKELETON (builds but not validated)
+**GOAL Alignment:** Optional (for comparison)
 
-| Method | Status | Notes |
-|--------|--------|-------|
-| `__init__(n_features, hidden_layers, ...)` | ✅ Works | TensorFlow/Keras model |
-| `train(X, y, epochs, ...)` | ⚠️ Untested | Early stopping, LR scheduling |
-| `predict(X)` | ⚠️ Untested | Binary predictions |
-| `predict_proba(X)` | ⚠️ Untested | Probability estimates |
-| `get_witness_functional()` | ⚠️ Limited | Returns model, not operator |
-| `save_model() / load_model()` | ✅ Works | Keras serialization |
+| Status | Notes |
+|--------|-------|
+| Architecture | ✅ Builds (TensorFlow/Keras) |
+| Training | ⚠️ Untested end-to-end |
+| Witness extraction | ❌ No operator extraction (nonlinear) |
 
-**For GOAL.md:**
-- Can be used for nonlinear baseline comparison
-- Does NOT extract witness as `SparsePauliOp` (fundamentally different for nonlinear)
+**For GOAL.md:** Useful as nonlinear baseline comparison, but NOT primary deliverable.
 
 ---
 
 ### 5. Utilities
+
 **Status:** ✅ COMPLETE
 
-| Module | Lines | Status | Purpose |
-|--------|-------|--------|---------|
-| `config_manager.py` | 184 | ✅ Works | YAML config loading |
-| `logger.py` | 102 | ✅ Works | Centralized logging |
-| `checkpoint_manager.py` | 164 | ✅ Works | Model checkpointing |
-| `reproducibility.py` | 77 | ✅ Works | Seed management |
-
----
-
-### 6. Tests
-**Status:** ✅ PASSING
-
-| Test File | Tests | Status |
-|-----------|-------|--------|
-| `test_state_generation.py` | 8 | ✅ All pass |
-| `test_feature_extraction.py` | 7 | ✅ All pass |
-| `test_integration.py` | 3 | ✅ All pass |
-| `test_mlp_witness.py` | ~8 | ⚠️ Partial |
-| `test_utils.py` | ~8 | ✅ All pass |
-
-**Run tests:**
-```bash
-cd /home/user/ML_QML_Witness_Generation
-source venv/bin/activate  # if using venv
-pytest tests/ -v
-```
-
----
-
-## What's NOT Implemented
-
-### Critical for GOAL.md
-
-| Component | Priority | Complexity | Notes |
-|-----------|----------|------------|-------|
-| **Distillability oracle (NPT)** | HIGH | Low | Check NPT across all bipartitions |
-| **3-qubit validation** | HIGH | Low | Test existing code with n=3 |
-| **QEC state generators** | HIGH | Medium | Noisy cluster states, etc. |
-| **DPS hierarchy** | MEDIUM | High | SDP-based separability |
-| **Bound entangled generators** | MEDIUM | Medium | Known 3-qubit constructions |
-
-### Not Needed for GOAL.md
-
-| Component | Original Framework | GOAL.md Relevance |
-|-----------|-------------------|-------------------|
-| KAN architecture | Phase 3 | Not needed |
-| Qutrit support | Phase 3 | Not needed |
-| VQC/QSVC | Phase 5 | Not needed |
-| Hybrid ML+SDP | Phase 4 | Could enhance labeling |
-| Teleportation fidelity | Use-case 1 | Not needed |
-
----
-
-## Dependencies
-
-**Installed and Working:**
-```
-qiskit>=1.0.0           ✅ Quantum state/operator handling
-qiskit-aer>=0.13.0      ✅ Simulation backend
-tensorflow>=2.15.0      ✅ Neural networks
-scikit-learn>=1.3.0     ✅ SVM, metrics
-numpy, scipy            ✅ Numerics
-cvxpy>=1.4.0            ✅ Installed (unused)
-pytest                  ✅ Testing
-```
-
-**Available but Unused:**
-- `cvxpy` - Ready for SDP-based labeling (DPS hierarchy)
-- `qiskit-machine-learning` - VQC/QSVC (not needed for GOAL.md)
-
----
-
-## File Structure
-
-```
-ML_QML_Witness_Generation/
-├── src/
-│   ├── quantum_states/
-│   │   ├── __init__.py
-│   │   └── state_generation.py      ✅ COMPLETE
-│   ├── feature_extraction/
-│   │   ├── __init__.py
-│   │   └── pauli_features.py        ✅ COMPLETE
-│   ├── ml_models/
-│   │   ├── __init__.py
-│   │   ├── svm_witness.py           ✅ COMPLETE
-│   │   └── mlp_witness.py           ⚠️ SKELETON
-│   └── utils/
-│       ├── __init__.py
-│       ├── config_manager.py        ✅ COMPLETE
-│       ├── logger.py                ✅ COMPLETE
-│       ├── checkpoint_manager.py    ✅ COMPLETE
-│       └── reproducibility.py       ✅ COMPLETE
-├── tests/
-│   ├── test_state_generation.py     ✅ 8 tests
-│   ├── test_feature_extraction.py   ✅ 7 tests
-│   ├── test_integration.py          ✅ 3 tests
-│   ├── test_mlp_witness.py          ⚠️ partial
-│   └── test_utils.py                ✅ ~8 tests
-├── examples/
-│   └── basic_svm_witness.py         ✅ Working demo
-├── config/
-│   ├── defaults.yaml
-│   └── model/*.yaml
-├── GOAL.md                          ✅ Research objective
-├── CURRENT_STATUS.md                ✅ This file
-├── ACADEMIC_AUDIT_REPORT.md         ✅ Full analysis
-└── requirements.txt
-```
-
----
-
-## Quick Validation Commands
-
-```bash
-# Activate environment
-cd /home/user/ML_QML_Witness_Generation
-source venv/bin/activate
-
-# Run all tests
-pytest tests/ -v
-
-# Run example pipeline
-python examples/basic_svm_witness.py
-
-# Quick 3-qubit test (manual)
-python -c "
-from src.quantum_states.state_generation import generate_dataset
-from src.feature_extraction.pauli_features import get_pauli_basis, create_sparse_measurement_set
-
-# Test 3-qubit generation
-states, labels = generate_dataset(n_qubits=3, n_samples=10, seed=42)
-print(f'Generated {len(states)} 3-qubit states')
-print(f'State dimension: {states[0].dim}')  # Should be 8
-
-# Test restricted basis
-full_basis = get_pauli_basis(3)
-restricted_basis = create_sparse_measurement_set(3, strategy='two_body')
-print(f'Full basis: {len(full_basis)} operators')      # Should be 63
-print(f'Restricted (1+2 body): {len(restricted_basis)} operators')  # Should be 36
-"
-```
+| Module | Purpose | GOAL Relevance |
+|--------|---------|----------------|
+| `config_manager.py` | YAML configs | Experiment management |
+| `logger.py` | Logging | Debugging |
+| `checkpoint_manager.py` | Model saving | Reproducibility |
+| `reproducibility.py` | Seed control | Scientific rigor |
 
 ---
 
 ## Gap Analysis for GOAL.md
 
-| Requirement | Status | Action Needed |
-|-------------|--------|---------------|
-| 3-qubit states | Code exists | Validate with tests |
-| 1+2 body features | ✅ Ready | None |
-| Linear SVM | ✅ Ready | None |
-| Witness extraction | ✅ Ready | None |
-| Measurement cost | ✅ Ready | None |
-| NPT distillability | ❌ Missing | Implement (2-4 hours) |
-| QEC state families | ❌ Missing | Implement (4-6 hours) |
-| DPS hierarchy | ❌ Missing | Implement (8-12 hours) |
+### Critical Gaps (Block MVP)
+
+| Gap | Priority | Effort | Description |
+|-----|----------|--------|-------------|
+| **NPT Distillability Oracle** | P0 | 3-4h | Check NPT across all 3 bipartitions |
+| **3-Qubit Validation** | P0 | 2h | Test existing code with n=3 |
+| **Dataset Generation** | P0 | 4-6h | Balanced distillable/non-distillable |
+
+### Important Gaps (Strengthen Result)
+
+| Gap | Priority | Effort | Description |
+|-----|----------|--------|-------------|
+| QEC State Generators | P1 | 4h | Noisy GHZ, W, cluster states |
+| DPS Hierarchy | P1 | 8-12h | Rigorous SDP labeling |
+| Bound Entangled States | P1 | 4h | Hard negative examples |
+
+### Nice-to-Have Gaps
+
+| Gap | Priority | Effort | Description |
+|-----|----------|--------|-------------|
+| Noise Models | P2 | 2h | Amplitude damping, dephasing |
+| L1 Sparse SVM | P2 | 2h | Measurement-optimal witnesses |
+| Ablation Framework | P2 | 4h | Systematic comparison tools |
 
 ---
 
-## Estimated Effort to GOAL.md MVP
+## Implementation Checklist
 
-| Task | Hours | Confidence |
-|------|-------|------------|
-| Validate 3-qubit pipeline | 2 | High |
-| Implement NPT oracle | 3 | High |
-| Generate training dataset | 4 | Medium |
-| Train and evaluate | 2 | High |
-| Basic analysis | 3 | High |
-| **Total MVP** | **~14 hours** | **High** |
+### Phase 1: Infrastructure (Day 1-2)
 
-| Enhancement | Hours | Priority |
-|-------------|-------|----------|
-| DPS hierarchy | 10 | Medium |
-| Bound entangled states | 6 | Medium |
-| Noise analysis | 4 | Low |
-| Nonlinear comparison | 4 | Low |
+```
+[ ] 3-Qubit Validation
+    [ ] Test generate_dataset(n_qubits=3)
+    [ ] Verify state dimensions (8×8 matrices)
+    [ ] Test GHZ/W state generation for 3 qubits
+
+[ ] Restricted Feature Validation
+    [ ] Verify create_sparse_measurement_set(3, 'two_body') → 36 operators
+    [ ] Confirm 1-body (9) + 2-body (27) = 36
+    [ ] Test feature extraction produces 36D vectors
+
+[ ] NPT Distillability Oracle
+    [ ] Implement check_npt_any_bipartition(rho)
+    [ ] Bipartitions: A|BC (1|23), B|AC (2|13), C|AB (3|12)
+    [ ] Return: True if NPT across ANY cut → distillable
+
+[ ] End-to-End Pipeline Test
+    [ ] states → restricted features → SVM → witness
+    [ ] Verify witness is SparsePauliOp with 36 terms max
+```
+
+### Phase 2: Dataset (Day 3-4)
+
+```
+[ ] State Generators
+    [ ] Noisy GHZ: (1-p)|GHZ⟩⟨GHZ| + p·I/8
+    [ ] Noisy W: (1-p)|W⟩⟨W| + p·I/8
+    [ ] Random near-boundary states
+
+[ ] Labeling
+    [ ] Apply NPT oracle to all states
+    [ ] Validate against known cases (pure GHZ → distillable)
+    [ ] Balance dataset (aim for 50/50 split)
+
+[ ] Dataset Sizes
+    [ ] Training: ~4000 states
+    [ ] Validation: ~500 states
+    [ ] Test: ~500 states
+```
+
+### Phase 3: Witness Learning (Day 5-6)
+
+```
+[ ] Training
+    [ ] Train SVM on 36D restricted features
+    [ ] Extract metrics: accuracy, precision, recall
+
+[ ] Witness Extraction
+    [ ] Get witness W = Σ wₖPₖ
+    [ ] Verify: only 1+2 body terms (no 3-body)
+    [ ] Compute measurement cost
+
+[ ] Evaluation
+    [ ] Test set performance
+    [ ] Per-family breakdown
+```
+
+### Phase 4: Analysis (Day 7-10)
+
+```
+[ ] Ablation: Restricted vs Full
+    [ ] Train on 63D (full) features
+    [ ] Compare accuracy: 36D vs 63D
+    [ ] Quantify information loss
+
+[ ] Failure Analysis
+    [ ] Identify misclassified states
+    [ ] Characterize failure modes
+    [ ] Physical interpretation
+```
 
 ---
 
-## Summary
+## Quick Start Commands
 
-**Ready to Use:**
-- State generation (needs 3-qubit validation)
-- Restricted feature extraction (36D for 3-qubit)
-- Linear SVM witness learning
-- Witness operator extraction
-- Measurement cost estimation
+```bash
+# Setup
+cd /home/user/ML_QML_Witness_Generation
+source venv/bin/activate
 
-**Needs Implementation:**
-- Distillability labeling oracle (NPT proxy first, then DPS)
-- QEC-specific state generators
-- 3-qubit test coverage
+# Run existing tests
+pytest tests/ -v
 
-**Timeline to MVP:** 1-2 days of focused work
+# Quick 3-qubit verification
+python -c "
+from src.quantum_states.state_generation import generate_dataset
+from src.feature_extraction.pauli_features import create_sparse_measurement_set, extract_features_batch
+
+# Generate 3-qubit states
+states, labels = generate_dataset(n_qubits=3, n_samples=10, seed=42)
+print(f'State dimension: {states[0].dim}')  # Should be 8
+
+# Get restricted basis
+restricted = create_sparse_measurement_set(3, strategy='two_body')
+print(f'Restricted basis size: {len(restricted)}')  # Should be 36
+
+# Extract features
+features = extract_features_batch(states, restricted, verbose=False)
+print(f'Feature shape: {features.shape}')  # Should be (10, 36)
+"
+```
 
 ---
 
-*This status document should be updated as implementation progresses toward GOAL.md objectives.*
+## Dependency Status
+
+**Required and Installed:**
+```
+qiskit>=1.0.0           ✅ Core quantum operations
+tensorflow>=2.15.0      ✅ MLP (optional comparison)
+scikit-learn>=1.3.0     ✅ SVM
+numpy, scipy            ✅ Numerics
+cvxpy>=1.4.0            ✅ Ready for DPS (unused)
+pytest                  ✅ Testing
+```
+
+**Not Needed for GOAL.md:**
+```
+qiskit-machine-learning  (VQC/QSVC - not in scope)
+```
+
+---
+
+## Risk Assessment
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| 3-qubit code has bugs | Low | High | Thorough validation in Phase 1 |
+| NPT proxy is too weak | Medium | Medium | Implement DPS as backup |
+| Linear SVM insufficient | Medium | Low | This IS the research question |
+| Boundary is nonlinear | Medium | None | Negative result is still valuable |
+
+---
+
+## File Structure (GOAL-Relevant)
+
+```
+ML_QML_Witness_Generation/
+├── GOAL.md                          ✅ CANONICAL research objective
+├── CURRENT_STATUS.md                ✅ CANONICAL this document
+├── src/
+│   ├── quantum_states/
+│   │   └── state_generation.py      ⚠️ Needs 3-qubit validation
+│   ├── feature_extraction/
+│   │   └── pauli_features.py        ✅ Ready (36D restricted)
+│   ├── ml_models/
+│   │   ├── svm_witness.py           ✅ Ready (witness extraction)
+│   │   └── mlp_witness.py           ⚠️ Optional comparison
+│   └── utils/                       ✅ Ready
+├── tests/                           ⚠️ Need 3-qubit tests
+├── config/                          ✅ Ready
+└── requirements.txt                 ✅ All dependencies present
+```
+
+---
+
+## Summary for Implementation
+
+**Start Here:**
+1. Run the quick 3-qubit verification above
+2. Implement `check_npt_any_bipartition()` function
+3. Generate labeled dataset
+4. Train SVM and extract witness
+
+**The codebase is ~70% ready for GOAL.md.** The missing 30% is:
+- Distillability oracle (NPT/DPS)
+- 3-qubit validation
+- QEC state generators
+
+**Critical path:** NPT oracle → Dataset → Training → Analysis
+
+---
+
+*This document is CANONICAL. Updates should maintain alignment with GOAL.md and include version increments.*
