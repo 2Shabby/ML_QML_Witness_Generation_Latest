@@ -1,17 +1,18 @@
-"""Utility modules for the ML/QML Witness Generation Framework."""
+"""Minimal utility functions for reproducibility."""
 
-from .config_manager import load_config, save_config, merge_configs
-from .logger import setup_logger, get_logger
-from .checkpoint_manager import CheckpointManager
-from .reproducibility import set_seed, get_random_state
+import random
+import numpy as np
 
-__all__ = [
-    'load_config',
-    'save_config',
-    'merge_configs',
-    'setup_logger',
-    'get_logger',
-    'CheckpointManager',
-    'set_seed',
-    'get_random_state'
-]
+
+def set_seed(seed: int) -> None:
+    """
+    Set random seeds for reproducibility.
+
+    Args:
+        seed: Random seed value
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+
+
+__all__ = ['set_seed']
