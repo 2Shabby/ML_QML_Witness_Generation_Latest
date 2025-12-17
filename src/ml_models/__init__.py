@@ -25,6 +25,15 @@ except ImportError:
     TransformerClassifier = None
     HybridTransformerWitness = None
 
+# Conditionally import MLP classifier (requires PyTorch)
+try:
+    from .mlp_classifier import MLPClassifierLearner, MLPDiscriminator
+    _MLP_AVAILABLE = True
+except ImportError:
+    _MLP_AVAILABLE = False
+    MLPClassifierLearner = None
+    MLPDiscriminator = None
+
 __all__ = [
     'SVMWitnessLearner',
     # Witness utilities
@@ -43,4 +52,11 @@ if _TRANSFORMER_AVAILABLE:
         'TransformerWitnessLearner',
         'TransformerClassifier',
         'HybridTransformerWitness',
+    ])
+
+# Add MLP models to __all__ if available
+if _MLP_AVAILABLE:
+    __all__.extend([
+        'MLPClassifierLearner',
+        'MLPDiscriminator',
     ])
