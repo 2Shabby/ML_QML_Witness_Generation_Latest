@@ -27,17 +27,17 @@ from typing import Tuple, Dict, Optional, List
 import logging
 import math
 
+from ..config import DEFAULT_TRANSFORMER_CONFIG
+from ..utils import set_seed, get_split_seed
+
 logger = logging.getLogger(__name__)
 
-# ============================================================================
-# CENTRALIZED DEFAULT CONFIGURATION
-# Minimal transformer for 36D binary classification task
-# ============================================================================
-DEFAULT_D_MODEL = 16      # Hidden dimension (reduced from 64)
-DEFAULT_N_HEADS = 2       # Attention heads (reduced from 4)
-DEFAULT_N_LAYERS = 1      # Transformer layers (reduced from 2)
-DEFAULT_D_FF = 32         # Feed-forward dimension (reduced from 128)
-DEFAULT_DROPOUT = 0.1     # Dropout probability
+# Import defaults from centralized config
+DEFAULT_D_MODEL = DEFAULT_TRANSFORMER_CONFIG.d_model
+DEFAULT_N_HEADS = DEFAULT_TRANSFORMER_CONFIG.n_heads
+DEFAULT_N_LAYERS = DEFAULT_TRANSFORMER_CONFIG.n_layers
+DEFAULT_D_FF = DEFAULT_TRANSFORMER_CONFIG.d_ff
+DEFAULT_DROPOUT = DEFAULT_TRANSFORMER_CONFIG.dropout
 
 
 class PositionalEncoding(nn.Module):
@@ -472,10 +472,9 @@ class TransformerWitnessLearner:
         else:
             self.device = torch.device(device)
 
-        # Set random seed
+        # Set random seed using centralized utility
         if random_state is not None:
-            torch.manual_seed(random_state)
-            np.random.seed(random_state)
+            set_seed(random_state)
 
         # Initialize model
         self._init_model()
@@ -488,6 +487,174 @@ class TransformerWitnessLearner:
 
         # Create Pauli type tensor (0 for 1-body, 1 for 2-body)
         self.pauli_types = self._compute_pauli_types()
+
+    def _run_training_loop(
+        self,
+        X_train_t: torch.Tensor,
+        y_train_t: torch.Tensor,
+        X_val_t: torch.Tensor,
+        y_val_t: torch.Tensor,
+        verbose: bool = True
+    ) -> Tuple[Dict, torch.Tensor]:
+        """
+        Common training loop used by both train() and fit() methods.
+
+        Args:
+            X_train_t: Training features tensor
+            y_train_t: Training labels tensor
+            X_val_t: Validation features tensor
+            y_val_t: Validation labels tensor
+            verbose: Whether to log progress
+
+        Returns:
+            Tuple of (best_model_state, training_history)
+        """
+        # Create data loader
+        train_dataset = TensorDataset(X_train_t, y_train_t)
+        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+
+        # Optimizer and loss
+        optimizer = optim.AdamW(
+            self.model.parameters(),
+            lr=self.learning_rate,
+            weight_decay=self.weight_decay
+        )
+
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=0.5, patience=5
+        )
+
+        criterion = nn.CrossEntropyLoss()
+
+        # Training loop with early stopping
+        best_val_loss = float('inf')
+        best_model_state = None
+        patience_counter = 0
+
+        self.training_history = []
+
+        for epoch in range(self.n_epochs):
+            # Training phase
+            self.model.train()
+            train_loss = 0.0
+            train_correct = 0
+            train_total = 0
+
+            for batch_X, batch_y in train_loader:
+                optimizer.zero_grad()
+
+                logits = self.model(batch_X)
+                loss = criterion(logits, batch_y)
+
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                optimizer.step()
+
+                train_loss += loss.item() * batch_X.size(0)
+                _, predicted = torch.max(logits, 1)
+                train_correct += (predicted == batch_y).sum().item()
+                train_total += batch_y.size(0)
+
+            train_loss /= train_total
+            train_acc = train_correct / train_total
+
+            # Validation phase
+            self.model.eval()
+            with torch.no_grad():
+                val_logits = self.model(X_val_t)
+                val_loss = criterion(val_logits, y_val_t).item()
+                _, val_predicted = torch.max(val_logits, 1)
+                val_acc = (val_predicted == y_val_t).float().mean().item()
+
+            self.training_history.append({
+                'epoch': epoch + 1,
+                'train_loss': train_loss,
+                'train_acc': train_acc,
+                'val_loss': val_loss,
+                'val_acc': val_acc
+            })
+
+            # Learning rate scheduling
+            scheduler.step(val_loss)
+
+            # Early stopping check
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                patience_counter = 0
+            else:
+                patience_counter += 1
+
+            if verbose and (epoch + 1) % 10 == 0:
+                logger.info(f"Epoch {epoch+1}/{self.n_epochs}: "
+                          f"train_loss={train_loss:.4f}, train_acc={train_acc:.4f}, "
+                          f"val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
+
+            if patience_counter >= self.patience:
+                if verbose:
+                    logger.info(f"Early stopping at epoch {epoch+1}")
+                break
+
+        # Load best model
+        if best_model_state is not None:
+            self.model.load_state_dict({k: v.to(self.device) for k, v in best_model_state.items()})
+
+        return best_val_loss
+
+    def _compute_final_metrics(
+        self,
+        X_train_t: torch.Tensor,
+        y_train: np.ndarray,
+        X_val_t: torch.Tensor,
+        y_val: np.ndarray,
+        best_val_loss: float,
+        verbose: bool = True
+    ) -> Dict[str, float]:
+        """
+        Compute final metrics after training.
+
+        Args:
+            X_train_t: Training features tensor
+            y_train: Training labels (numpy)
+            X_val_t: Validation features tensor
+            y_val: Validation labels (numpy)
+            best_val_loss: Best validation loss from training
+            verbose: Whether to log metrics
+
+        Returns:
+            Dictionary of performance metrics
+        """
+        self.model.eval()
+        with torch.no_grad():
+            train_logits = self.model(X_train_t)
+            val_logits = self.model(X_val_t)
+
+            _, train_pred = torch.max(train_logits, 1)
+            _, val_pred = torch.max(val_logits, 1)
+
+            train_pred = train_pred.cpu().numpy()
+            val_pred = val_pred.cpu().numpy()
+
+        metrics = {
+            'train_accuracy': accuracy_score(y_train, train_pred),
+            'test_accuracy': accuracy_score(y_val, val_pred),
+            'train_precision': precision_score(y_train, train_pred, zero_division=0),
+            'test_precision': precision_score(y_val, val_pred, zero_division=0),
+            'train_recall': recall_score(y_train, train_pred, zero_division=0),
+            'test_recall': recall_score(y_val, val_pred, zero_division=0),
+            'n_parameters': sum(p.numel() for p in self.model.parameters()),
+            'n_epochs_trained': len(self.training_history),
+            'best_val_loss': best_val_loss
+        }
+
+        if verbose:
+            logger.info("Training complete!")
+            logger.info(f"Test Accuracy: {metrics['test_accuracy']:.4f}")
+            logger.info(f"Test Precision: {metrics['test_precision']:.4f}")
+            logger.info(f"Test Recall: {metrics['test_recall']:.4f}")
+            logger.info(f"Parameters: {metrics['n_parameters']}")
+
+        return metrics
 
     def _init_model(self):
         """Initialize the transformer model based on mode."""
@@ -549,8 +716,8 @@ class TransformerWitnessLearner:
             logger.info(f"Training samples: {len(X)}, Features: {X.shape[1]}")
             logger.info(f"Architecture: d_model={self.d_model}, n_layers={self.n_layers}, n_heads={self.n_heads}")
 
-        # Split data
-        split_seed = self.random_state + 1000 if self.random_state is not None else None
+        # Split data using centralized seed utility
+        split_seed = get_split_seed(self.random_state)
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, random_state=split_seed, stratify=y
         )
@@ -561,96 +728,8 @@ class TransformerWitnessLearner:
         X_test_t = torch.tensor(X_test, dtype=torch.float32, device=self.device)
         y_test_t = torch.tensor(y_test, dtype=torch.long, device=self.device)
 
-        # Create data loaders
-        train_dataset = TensorDataset(X_train_t, y_train_t)
-        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
-
-        # Optimizer and loss
-        optimizer = optim.AdamW(
-            self.model.parameters(),
-            lr=self.learning_rate,
-            weight_decay=self.weight_decay
-        )
-
-        # Learning rate scheduler (verbose removed in newer PyTorch versions)
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=0.5, patience=5
-        )
-
-        criterion = nn.CrossEntropyLoss()
-
-        # Training loop with early stopping
-        best_val_loss = float('inf')
-        best_model_state = None
-        patience_counter = 0
-
-        self.training_history = []
-
-        for epoch in range(self.n_epochs):
-            # Training
-            self.model.train()
-            train_loss = 0.0
-            train_correct = 0
-            train_total = 0
-
-            for batch_X, batch_y in train_loader:
-                optimizer.zero_grad()
-
-                logits = self.model(batch_X)
-                loss = criterion(logits, batch_y)
-
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-                optimizer.step()
-
-                train_loss += loss.item() * batch_X.size(0)
-                _, predicted = torch.max(logits, 1)
-                train_correct += (predicted == batch_y).sum().item()
-                train_total += batch_y.size(0)
-
-            train_loss /= train_total
-            train_acc = train_correct / train_total
-
-            # Validation
-            self.model.eval()
-            with torch.no_grad():
-                val_logits = self.model(X_test_t)
-                val_loss = criterion(val_logits, y_test_t).item()
-                _, val_predicted = torch.max(val_logits, 1)
-                val_acc = (val_predicted == y_test_t).float().mean().item()
-
-            self.training_history.append({
-                'epoch': epoch + 1,
-                'train_loss': train_loss,
-                'train_acc': train_acc,
-                'val_loss': val_loss,
-                'val_acc': val_acc
-            })
-
-            # Learning rate scheduling
-            scheduler.step(val_loss)
-
-            # Early stopping
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
-                patience_counter = 0
-            else:
-                patience_counter += 1
-
-            if verbose and (epoch + 1) % 10 == 0:
-                logger.info(f"Epoch {epoch+1}/{self.n_epochs}: "
-                          f"train_loss={train_loss:.4f}, train_acc={train_acc:.4f}, "
-                          f"val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
-
-            if patience_counter >= self.patience:
-                if verbose:
-                    logger.info(f"Early stopping at epoch {epoch+1}")
-                break
-
-        # Load best model
-        if best_model_state is not None:
-            self.model.load_state_dict({k: v.to(self.device) for k, v in best_model_state.items()})
+        # Run common training loop
+        best_val_loss = self._run_training_loop(X_train_t, y_train_t, X_test_t, y_test_t, verbose)
 
         self.is_trained = True
 
@@ -658,36 +737,10 @@ class TransformerWitnessLearner:
         if self.mode == 'hybrid':
             self._extract_witness_operator(X_train_t)
 
-        # Final evaluation
-        self.model.eval()
-        with torch.no_grad():
-            train_logits = self.model(X_train_t)
-            test_logits = self.model(X_test_t)
-
-            _, train_pred = torch.max(train_logits, 1)
-            _, test_pred = torch.max(test_logits, 1)
-
-            train_pred = train_pred.cpu().numpy()
-            test_pred = test_pred.cpu().numpy()
-
-        self.metrics = {
-            'train_accuracy': accuracy_score(y_train, train_pred),
-            'test_accuracy': accuracy_score(y_test, test_pred),
-            'train_precision': precision_score(y_train, train_pred, zero_division=0),
-            'test_precision': precision_score(y_test, test_pred, zero_division=0),
-            'train_recall': recall_score(y_train, train_pred, zero_division=0),
-            'test_recall': recall_score(y_test, test_pred, zero_division=0),
-            'n_parameters': sum(p.numel() for p in self.model.parameters()),
-            'n_epochs_trained': len(self.training_history),
-            'best_val_loss': best_val_loss
-        }
-
-        if verbose:
-            logger.info("Training complete!")
-            logger.info(f"Test Accuracy: {self.metrics['test_accuracy']:.4f}")
-            logger.info(f"Test Precision: {self.metrics['test_precision']:.4f}")
-            logger.info(f"Test Recall: {self.metrics['test_recall']:.4f}")
-            logger.info(f"Parameters: {self.metrics['n_parameters']}")
+        # Compute final metrics
+        self.metrics = self._compute_final_metrics(
+            X_train_t, y_train, X_test_t, y_test, best_val_loss, verbose
+        )
 
         return self.metrics
 
@@ -727,93 +780,8 @@ class TransformerWitnessLearner:
         X_val_t = torch.tensor(X_val, dtype=torch.float32, device=self.device)
         y_val_t = torch.tensor(y_val, dtype=torch.long, device=self.device)
 
-        # Create data loaders
-        train_dataset = TensorDataset(X_train_t, y_train_t)
-        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
-
-        # Optimizer and loss
-        optimizer = optim.AdamW(
-            self.model.parameters(),
-            lr=self.learning_rate,
-            weight_decay=self.weight_decay
-        )
-
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=0.5, patience=5
-        )
-
-        criterion = nn.CrossEntropyLoss()
-
-        # Training loop with early stopping
-        best_val_loss = float('inf')
-        best_model_state = None
-        patience_counter = 0
-
-        self.training_history = []
-
-        for epoch in range(self.n_epochs):
-            # Training
-            self.model.train()
-            train_loss = 0.0
-            train_correct = 0
-            train_total = 0
-
-            for batch_X, batch_y in train_loader:
-                optimizer.zero_grad()
-
-                logits = self.model(batch_X)
-                loss = criterion(logits, batch_y)
-
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-                optimizer.step()
-
-                train_loss += loss.item() * batch_X.size(0)
-                _, predicted = torch.max(logits, 1)
-                train_correct += (predicted == batch_y).sum().item()
-                train_total += batch_y.size(0)
-
-            train_loss /= train_total
-            train_acc = train_correct / train_total
-
-            # Validation
-            self.model.eval()
-            with torch.no_grad():
-                val_logits = self.model(X_val_t)
-                val_loss = criterion(val_logits, y_val_t).item()
-                _, val_predicted = torch.max(val_logits, 1)
-                val_acc = (val_predicted == y_val_t).float().mean().item()
-
-            self.training_history.append({
-                'epoch': epoch + 1,
-                'train_loss': train_loss,
-                'train_acc': train_acc,
-                'val_loss': val_loss,
-                'val_acc': val_acc
-            })
-
-            scheduler.step(val_loss)
-
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
-                patience_counter = 0
-            else:
-                patience_counter += 1
-
-            if verbose and (epoch + 1) % 10 == 0:
-                logger.info(f"Epoch {epoch+1}/{self.n_epochs}: "
-                          f"train_loss={train_loss:.4f}, train_acc={train_acc:.4f}, "
-                          f"val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
-
-            if patience_counter >= self.patience:
-                if verbose:
-                    logger.info(f"Early stopping at epoch {epoch+1}")
-                break
-
-        # Load best model
-        if best_model_state is not None:
-            self.model.load_state_dict({k: v.to(self.device) for k, v in best_model_state.items()})
+        # Run common training loop
+        best_val_loss = self._run_training_loop(X_train_t, y_train_t, X_val_t, y_val_t, verbose)
 
         self.is_trained = True
 
@@ -821,36 +789,10 @@ class TransformerWitnessLearner:
         if self.mode == 'hybrid':
             self._extract_witness_operator(X_train_t)
 
-        # Final evaluation
-        self.model.eval()
-        with torch.no_grad():
-            train_logits = self.model(X_train_t)
-            val_logits = self.model(X_val_t)
-
-            _, train_pred = torch.max(train_logits, 1)
-            _, val_pred = torch.max(val_logits, 1)
-
-            train_pred = train_pred.cpu().numpy()
-            val_pred = val_pred.cpu().numpy()
-
-        self.metrics = {
-            'train_accuracy': accuracy_score(y_train, train_pred),
-            'test_accuracy': accuracy_score(y_val, val_pred),
-            'train_precision': precision_score(y_train, train_pred, zero_division=0),
-            'test_precision': precision_score(y_val, val_pred, zero_division=0),
-            'train_recall': recall_score(y_train, train_pred, zero_division=0),
-            'test_recall': recall_score(y_val, val_pred, zero_division=0),
-            'n_parameters': sum(p.numel() for p in self.model.parameters()),
-            'n_epochs_trained': len(self.training_history),
-            'best_val_loss': best_val_loss
-        }
-
-        if verbose:
-            logger.info("Training complete!")
-            logger.info(f"Test Accuracy: {self.metrics['test_accuracy']:.4f}")
-            logger.info(f"Test Precision: {self.metrics['test_precision']:.4f}")
-            logger.info(f"Test Recall: {self.metrics['test_recall']:.4f}")
-            logger.info(f"Parameters: {self.metrics['n_parameters']}")
+        # Compute final metrics
+        self.metrics = self._compute_final_metrics(
+            X_train_t, y_train, X_val_t, y_val, best_val_loss, verbose
+        )
 
         return self.metrics
 

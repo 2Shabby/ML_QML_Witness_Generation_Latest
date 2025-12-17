@@ -16,6 +16,8 @@ from qiskit.quantum_info import PauliList, SparsePauliOp
 from typing import Tuple, Dict, Optional
 import logging
 
+from ..utils import get_split_seed
+
 logger = logging.getLogger(__name__)
 
 
@@ -97,9 +99,8 @@ class SVMWitnessLearner:
             logger.info("Training SVM witness learner...")
             logger.info(f"Training samples: {len(X)}, Features: {X.shape[1]}")
 
-        # Split data
-        # Use a different seed for split to avoid bad luck with specific random states
-        split_seed = self.random_state + 1000 if self.random_state is not None else None
+        # Split data using centralized seed utility
+        split_seed = get_split_seed(self.random_state)
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, random_state=split_seed, stratify=y
         )
