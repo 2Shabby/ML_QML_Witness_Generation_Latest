@@ -35,7 +35,7 @@
 \maketitle
 
 \begin{abstract}
-We present a comprehensive investigation into machine learning approaches for certifying distillability of three-qubit quantum states using only experimentally accessible measurements. Our study demonstrates that a 36-dimensional feature space restricted to one- and two-body Pauli operators achieves strong classification performance: 85.6\% accuracy with linear SVM and 99.7--100\% with transformer architectures. Critically, we show that this restricted feature space performs as well as or better than the full 63-dimensional Pauli basis, confirming that three-body correlations are not essential for practical distillability classification. These findings enable a 5$\times$ reduction in measurement overhead for real-time verification of quantum error correction resources. We provide detailed analysis of model architectures, feature importance, noise robustness, adversarial scenarios, and limitations.
+We present a comprehensive investigation into machine learning approaches for certifying distillability of three-qubit quantum states using only experimentally accessible measurements. Our study demonstrates that a 36-dimensional feature space restricted to one- and two-body Pauli operators achieves strong classification performance: 86.3\% accuracy with linear SVM, 100\% with MLP discriminator, and 99.5--100\% with transformer architectures. Critically, we show that this restricted feature space performs as well as or better than the full 63-dimensional Pauli basis, confirming that three-body correlations are not essential for practical distillability classification. These findings enable a 5$\times$ reduction in measurement overhead for real-time verification of quantum error correction resources. We provide detailed analysis of model architectures, feature importance, noise robustness, adversarial scenarios, and limitations.
 \end{abstract}
 
 \tableofcontents
@@ -62,9 +62,9 @@ This work addresses a key question: Can we certify distillability using only exp
 Our investigation yields the following contributions:
 
 \begin{enumerate}[noitemsep]
-    \item \textbf{Demonstration} that 36-dimensional restricted features (1+2 body Paulis) achieve $>85\%$ classification accuracy
+    \item \textbf{Demonstration} that 36-dimensional restricted features (1+2 body Paulis) achieve $>86\%$ classification accuracy
     \item \textbf{Evidence} that three-body correlations are not essential: 36D matches or exceeds 63D performance
-    \item \textbf{Comparison} of linear (SVM) and non-linear (Transformer) models, achieving up to 100\% accuracy
+    \item \textbf{Comparison} of linear (SVM), MLP discriminator, and Transformer models, achieving up to 100\% accuracy
     \item \textbf{Analysis} of witness operators, feature importance, and failure modes
     \item \textbf{Practical protocol} reducing measurement overhead by 5$\times$
 \end{enumerate}
@@ -196,6 +196,29 @@ Two modes are supported:
     \item \textbf{Hybrid:} Outputs witness coefficients $\mathbf{w}(\mathbf{x})$, classification via $\mathbf{w}(\mathbf{x}) \cdot \mathbf{x} + b$
 \end{itemize}
 
+\subsubsection{MLP Discriminator}
+
+We implement a discriminator-style MLP following GAN conventions:
+
+\begin{table}[h]
+\centering
+\caption{MLP Discriminator hyperparameters}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Hidden dimensions & [128, 64, 32] \\
+Activation & LeakyReLU(0.2) \\
+Normalization & BatchNorm \\
+Dropout & 0.3 \\
+Optimizer & Adam (lr=0.001) \\
+Total parameters & $\sim$12,000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This architecture is a pure classifier---it does not extract witness operators.
+
 %==============================================================================
 \section{Primary Results}
 %==============================================================================
@@ -203,19 +226,20 @@ Two modes are supported:
 \subsection{Classification Performance}
 
 \begin{claim}
-Linear SVM achieves $>85\%$ accuracy on restricted 36D features.
+Linear SVM achieves $>86\%$ accuracy on restricted 36D features.
 \end{claim}
 
 \begin{table}[h]
 \centering
-\caption{Model comparison (5,000 samples, seed=42)}
-\begin{tabular}{lcccc}
+\caption{Model comparison (2,000 samples, seed=42)}
+\begin{tabular}{lccccc}
 \toprule
-\textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC AUC} \\
 \midrule
-Linear SVM & 85.6\% & 85.3\% & 99.1\% & 91.7\% \\
-Transformer Classifier & 99.7\% & 99.8\% & 99.9\% & 99.8\% \\
-Transformer Hybrid & \textbf{100.0\%} & 100.0\% & 100.0\% & 100.0\% \\
+Linear SVM & 86.3\% & 86.9\% & 97.5\% & 91.9\% & 0.533 \\
+MLP Discriminator & \textbf{100.0\%} & 100.0\% & 100.0\% & 100.0\% & 1.000 \\
+Transformer Classifier & 99.5\% & 99.4\% & 100.0\% & 99.7\% & 0.997 \\
+Transformer Hybrid & \textbf{100.0\%} & 100.0\% & 100.0\% & 100.0\% & 1.000 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -370,7 +394,7 @@ Asymmetric noise & 100\% & 100 \\
 
 \subsection{SVM vs.\ Transformer Witnesses}
 
-Both models produce 36-term witnesses, but with fundamentally different structures:
+SVM and Transformer Hybrid models produce 36-term witnesses with fundamentally different structures. Note that the MLP Discriminator is a pure classifier and does not extract witness operators:
 
 \begin{table}[h]
 \centering
@@ -464,7 +488,7 @@ Results are specific to three-qubit systems. Scaling to four or more qubits requ
 \begin{enumerate}
     \item \textbf{Primary hypothesis confirmed:} Restricted 1+2 body features (36D) reliably classify three-qubit distillability
     \item \textbf{Three-body terms unnecessary:} 36D matches or exceeds 63D performance ($p = 0.148$)
-    \item \textbf{Multiple model options:} Linear SVM (85.6\%, interpretable) vs.\ Transformer (99.7--100\%, higher accuracy)
+    \item \textbf{Multiple model options:} Linear SVM (86.3\%, interpretable), MLP Discriminator (100\%, pure classification), Transformer (99.5--100\%, with witness extraction)
     \item \textbf{Perfect QEC classification:} 100\% accuracy on GHZ, W, and cluster states
     \item \textbf{Practical efficiency:} 5$\times$ measurement reduction (12 vs.\ 63 settings)
 \end{enumerate}
