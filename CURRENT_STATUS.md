@@ -1,7 +1,7 @@
 # CANONICAL: Current Codebase Status
 
 **Document Status:** CANONICAL
-**Version:** 4.0
+**Version:** 5.0
 **Last Updated:** December 17, 2025
 **Aligned With:** GOAL.md v1.0
 
@@ -11,16 +11,17 @@
 
 ## Executive Summary
 
-### MVP COMPLETE AND AUDITED
+### MVP COMPLETE WITH TRANSFORMER EXTENSION
 
-The codebase has **all critical components implemented and verified** for the 3-qubit distillability witness learning pipeline as specified in GOAL.md.
+The codebase has **all critical components implemented and verified** for the 3-qubit distillability witness learning pipeline as specified in GOAL.md, now with an additional **transformer-based pipeline** for comparison.
 
 | Metric | Value | Status |
 |--------|-------|--------|
-| Tests passing | 32/32 | ✅ |
-| Test accuracy | 87% | ✅ (target: >55%) |
+| Tests passing | 32/32 (core) | ✅ |
+| SVM test accuracy | 87% | ✅ (target: >55%) |
 | NPT oracle | Verified correct | ✅ |
-| Pipeline | Production ready | ✅ |
+| SVM Pipeline | Production ready | ✅ |
+| Transformer Pipeline | Ready for testing | ✅ |
 
 ### Alignment with GOAL.md
 
@@ -65,31 +66,37 @@ See [AUDIT_REPORT.md](AUDIT_REPORT.md) for full details.
 ```
 ML_QML_Witness_Generation/
 ├── GOAL.md                              ✅ CANONICAL research objective
-├── CURRENT_STATUS.md                    ✅ CANONICAL (this document, v4.0)
+├── CURRENT_STATUS.md                    ✅ CANONICAL (this document, v5.0)
 ├── AUDIT_REPORT.md                      ✅ Verification results
 ├── RESTRUCTURE_PLAN.md                  ✅ Historical reference
 ├── README.md                            ✅ Project overview
-├── requirements.txt                     ⚠️ Needs cleanup (remove TensorFlow, etc.)
+├── requirements.txt                     ✅ Includes PyTorch for transformers
 │
 ├── src/
 │   ├── __init__.py
 │   ├── quantum_states/
-│   │   ├── __init__.py                  ⚠️ Missing new function exports
+│   │   ├── __init__.py
 │   │   └── state_generation.py          ✅ NPT oracle + all generators READY
 │   ├── feature_extraction/
 │   │   ├── __init__.py
 │   │   └── pauli_features.py            ✅ Ready (36D restricted)
 │   ├── ml_models/
-│   │   ├── __init__.py
-│   │   └── svm_witness.py               ✅ Ready (witness extraction)
+│   │   ├── __init__.py                  ✅ Exports SVM + Transformer learners
+│   │   ├── svm_witness.py               ✅ Ready (witness extraction)
+│   │   └── transformer_witness.py       ✅ NEW: Transformer + Hybrid witness
 │   └── utils/
 │       └── __init__.py                  ✅ Minimal (set_seed only)
+│
+├── scripts/
+│   ├── run_experiments.py               ✅ SVM experiments
+│   └── run_transformer_experiments.py   ✅ NEW: Transformer vs SVM comparison
 │
 └── tests/
     ├── __init__.py
     ├── test_state_generation.py         ✅ 21 tests (includes NPT oracle)
     ├── test_feature_extraction.py       ✅ 7 tests
-    └── test_integration.py              ✅ 4 tests (includes 3-qubit pipeline)
+    ├── test_integration.py              ✅ 4 tests (includes 3-qubit pipeline)
+    └── test_transformer_witness.py      ✅ NEW: Transformer model tests
 ```
 
 ---
@@ -141,6 +148,40 @@ ML_QML_Witness_Generation/
 | `get_witness_operator()` | ✅ | **W = Σ wₖPₖ as SparsePauliOp** |
 | `get_sparse_witness(threshold)` | ✅ | Measurement-efficient witness |
 | `get_measurement_cost()` | ✅ | Experimental feasibility metric |
+
+### 4. Transformer Witness Learner (NEW)
+
+**File:** `src/ml_models/transformer_witness.py` (941 lines)
+**GOAL Alignment:** ✅ EXTENSION FOR COMPARISON
+
+Provides two architectures for comparison with SVM:
+
+**TransformerClassifier:**
+| Feature | Description |
+|---------|-------------|
+| Architecture | Small transformer (64D, 4 heads, 2 layers) |
+| Input | 36D Pauli features as sequence |
+| Output | Binary classification |
+| Use case | Test if non-linear boundaries improve accuracy |
+
+**HybridTransformerWitness:**
+| Feature | Description |
+|---------|-------------|
+| Architecture | Constrained transformer outputting coefficients |
+| Input | 36D Pauli features |
+| Output | Classification + interpretable witness W = Σ wₖPₖ |
+| Use case | Maintain interpretability while allowing non-linearity |
+
+**TransformerWitnessLearner (Wrapper):**
+| Method | Status | Notes |
+|--------|--------|-------|
+| `__init__(pauli_basis, mode='hybrid')` | ✅ | mode: 'classifier' or 'hybrid' |
+| `train(X, y, test_size)` | ✅ | PyTorch training with early stopping |
+| `predict(X)` | ✅ | Binary classification |
+| `predict_proba(X)` | ✅ | Probability estimates |
+| `get_witness_operator()` | ✅ | Only in hybrid mode |
+| `get_attention_analysis(X)` | ✅ | Feature importance from attention |
+| `save(path)` / `load(path)` | ✅ | Model persistence |
 
 ---
 
@@ -210,27 +251,46 @@ python3 -m pytest tests/test_integration.py::TestIntegration::test_3qubit_distil
 ## What's Next
 
 The codebase is **ready for**:
-1. Larger-scale training experiments (5000+ samples)
-2. Ablation studies: 36D restricted vs 63D full features
-3. Witness coefficient analysis and interpretation
-4. Noise robustness characterization
+1. **Transformer vs SVM comparison experiments** (run `scripts/run_transformer_experiments.py`)
+2. Larger-scale training experiments (5000+ samples)
+3. Ablation studies: 36D restricted vs 63D full features
+4. Witness coefficient analysis: compare SVM vs Hybrid Transformer witnesses
+5. Noise robustness characterization
+
+**Experiment Commands:**
+```bash
+# Quick comparison
+python scripts/run_transformer_experiments.py --experiment comparison --n-samples 5000
+
+# Full cross-validation
+python scripts/run_transformer_experiments.py --experiment cv --n-samples 5000
+
+# Scaling study
+python scripts/run_transformer_experiments.py --experiment scaling
+
+# All experiments
+python scripts/run_transformer_experiments.py --experiment all --n-samples 10000
+```
 
 **Future work (optional):**
 - DPS hierarchy for rigorous SDP-based labeling
 - L1-regularized sparse SVM for minimal witnesses
 - Bound entanglement detection (requires different dataset)
+- Attention pattern analysis for feature importance
 
 ---
 
 ## Summary
 
-**The codebase is MVP-complete and audit-verified for GOAL.md.**
+**The codebase is MVP-complete and audit-verified for GOAL.md, with transformer extension.**
 
 - ✅ NPT distillability oracle implemented and verified
 - ✅ All 3-qubit state generators working
 - ✅ Distillability dataset generator with correct labels
-- ✅ End-to-end pipeline: 3-qubit states → 36D features → SVM → witness
-- ✅ 32 tests passing, 87% test accuracy
+- ✅ End-to-end SVM pipeline: 3-qubit states → 36D features → SVM → witness
+- ✅ End-to-end Transformer pipeline: 3-qubit states → 36D features → Transformer → classification/witness
+- ✅ 32 core tests passing, 87% SVM test accuracy
+- ✅ Transformer tests ready (requires PyTorch)
 
 ---
 
