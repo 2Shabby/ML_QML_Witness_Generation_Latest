@@ -19,6 +19,7 @@ from src.feature_extraction.pauli_features import (
     create_sparse_measurement_set
 )
 from src.ml_models.svm_witness import SVMWitnessLearner
+from src.utils import TORCH_AVAILABLE
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -333,6 +334,71 @@ class TestIntegration:
         logger.info("="*60)
 
         return metrics  # Return for further analysis if needed
+
+    @pytest.mark.skipif(not TORCH_AVAILABLE, reason="PyTorch not installed")
+    def test_3qubit_distillability_pipeline_mlp(self):
+        """
+        Test end-to-end 3-qubit distillability with MLP classifier.
+
+        Tests the MLP discriminator as a pure classifier (no witness extraction).
+        """
+        from src.ml_models.mlp_classifier import MLPClassifierLearner
+        from src.feature_extraction.pauli_features import extract_pauli_features
+
+        logger.info("="*60)
+        logger.info("Testing 3-qubit distillability pipeline with MLP")
+        logger.info("="*60)
+
+        # Generate dataset
+        states, labels = generate_distillability_dataset(
+            n_samples=300,
+            noise_range=(0.0, 0.5),
+            seed=42
+        )
+        labels = np.array(labels)
+
+        # Extract features
+        basis = create_sparse_measurement_set(3, 'two_body')
+        features = extract_features_batch(states, basis, verbose=False)
+
+        # Train MLP
+        learner = MLPClassifierLearner(
+            n_features=len(basis),
+            n_epochs=50,
+            random_state=42
+        )
+
+        metrics = learner.train(features, labels, test_size=0.2, verbose=False)
+
+        logger.info(f"MLP Test Accuracy: {metrics['test_accuracy']:.4f}")
+
+        # Verify accuracy
+        assert metrics['test_accuracy'] > 0.55, "MLP should beat random"
+
+        # Verify witness methods return None (pure classifier)
+        assert learner.get_witness_operator() is None
+        assert learner.get_measurement_cost() == -1
+
+        # Test on known states
+        ghz_state = generate_entangled_state(3, 'ghz', noise_level=0.0)
+        product_state = generate_3qubit_product_state()
+
+        ghz_features = extract_pauli_features(ghz_state, basis).reshape(1, -1)
+        product_features = extract_pauli_features(product_state, basis).reshape(1, -1)
+
+        ghz_pred = learner.predict(ghz_features)[0]
+        product_pred = learner.predict(product_features)[0]
+
+        logger.info(f"Pure GHZ prediction: {ghz_pred}")
+        logger.info(f"Product state prediction: {product_pred}")
+
+        # GHZ should be distillable, product should not
+        assert ghz_pred == 1, "Pure GHZ should be classified as distillable"
+        assert product_pred == 0, "Product state should be non-distillable"
+
+        logger.info("\n" + "="*60)
+        logger.info("3-qubit distillability MLP pipeline test PASSED!")
+        logger.info("="*60)
 
 
 if __name__ == '__main__':

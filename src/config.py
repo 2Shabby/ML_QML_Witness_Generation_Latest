@@ -7,7 +7,7 @@ and default settings.
 """
 
 from dataclasses import dataclass, field
-from typing import Tuple, List, Dict, Any
+from typing import Any, Dict, List, Tuple
 
 
 # =============================================================================
@@ -90,6 +90,35 @@ DEFAULT_TRANSFORMER_CONFIG = TransformerConfig()
 
 
 # =============================================================================
+# MLP CONFIGURATION
+# =============================================================================
+
+@dataclass
+class MLPConfig:
+    """Configuration for MLP discriminator classifier."""
+    hidden_dims: List[int] = field(default_factory=lambda: [128, 64, 32])
+    dropout: float = 0.3
+    learning_rate: float = 1e-3
+    batch_size: int = 64
+    n_epochs: int = 100
+    patience: int = 15
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert config to dictionary."""
+        return {
+            'hidden_dims': self.hidden_dims,
+            'dropout': self.dropout,
+            'learning_rate': self.learning_rate,
+            'batch_size': self.batch_size,
+            'n_epochs': self.n_epochs,
+            'patience': self.patience,
+        }
+
+
+DEFAULT_MLP_CONFIG = MLPConfig()
+
+
+# =============================================================================
 # FEATURE EXTRACTION DEFAULTS
 # =============================================================================
 
@@ -138,6 +167,9 @@ __all__ = [
     # Transformer
     'TransformerConfig',
     'DEFAULT_TRANSFORMER_CONFIG',
+    # MLP
+    'MLPConfig',
+    'DEFAULT_MLP_CONFIG',
     # Feature extraction
     'DEFAULT_N_QUBITS',
     'DEFAULT_FEATURE_SET',

@@ -51,16 +51,18 @@ from src.config import (
     DEFAULT_NOISE_RANGE,
     DEFAULT_SEED,
     DEFAULT_TRANSFORMER_CONFIG,
+    DEFAULT_MLP_CONFIG,
     DEFAULT_LOG_FORMAT,
     RESULTS_DIR,
     PROJECT_ROOT,
 )
 from src.utils import convert_to_json_serializable, set_seed, TORCH_AVAILABLE
 
-# Try to import transformer
+# Try to import transformer and MLP
 if TORCH_AVAILABLE:
     import torch
     from src.ml_models.transformer_witness import TransformerWitnessLearner
+    from src.ml_models.mlp_classifier import MLPClassifierLearner
 
 # Try to import matplotlib
 try:
@@ -185,6 +187,38 @@ class ModelEvaluator:
         logger.info(f"Hybrid Transformer Accuracy: {self.results['transformer_hybrid']['metrics']['accuracy']:.4f}")
         return self.results['transformer_hybrid']
 
+    def evaluate_mlp(self) -> Optional[Dict]:
+        """Train and evaluate MLP Discriminator classifier."""
+        if not TORCH_AVAILABLE:
+            logger.warning("PyTorch not available, skipping MLP")
+            return None
+
+        logger.info("Training MLP Discriminator...")
+
+        config = DEFAULT_MLP_CONFIG.to_dict()
+        learner = MLPClassifierLearner(
+            n_features=len(self.basis),
+            **config,
+            random_state=self.seed
+        )
+
+        learner.fit(self.X_train, self.y_train, self.X_test, self.y_test, verbose=False)
+
+        y_pred = learner.predict(self.X_test)
+        y_proba = learner.predict_proba(self.X_test)[:, 1]
+
+        self.results['mlp'] = {
+            'name': 'MLP Discriminator',
+            'y_pred': y_pred,
+            'y_proba': y_proba,
+            'metrics': self._compute_metrics(y_pred, y_proba),
+            'n_parameters': learner.metrics.get('n_parameters', 0),
+            'model': learner
+        }
+
+        logger.info(f"MLP Test Accuracy: {self.results['mlp']['metrics']['accuracy']:.4f}")
+        return self.results['mlp']
+
     def _compute_metrics(self, y_pred, y_proba) -> Dict:
         """Compute comprehensive ML metrics."""
         fpr, tpr, _ = roc_curve(self.y_test, y_proba)
@@ -216,6 +250,7 @@ class ModelEvaluator:
     def run_all(self) -> Dict:
         """Run evaluation for all available models."""
         self.evaluate_svm()
+        self.evaluate_mlp()
         self.evaluate_transformer_classifier()
         self.evaluate_transformer_hybrid()
         return self.results
@@ -260,8 +295,8 @@ def plot_comparative_analysis(evaluator: ModelEvaluator, save_path: Optional[Pat
     fig = plt.figure(figsize=(18, 12))
     gs = GridSpec(2, 3, figure=fig, hspace=0.3, wspace=0.3)
 
-    colors = {'svm': '#3498db', 'transformer_classifier': '#2ecc71', 'transformer_hybrid': '#e74c3c'}
-    markers = {'svm': 'o', 'transformer_classifier': 's', 'transformer_hybrid': '^'}
+    colors = {'svm': '#3498db', 'mlp': '#9b59b6', 'transformer_classifier': '#2ecc71', 'transformer_hybrid': '#e74c3c'}
+    markers = {'svm': 'o', 'mlp': 'D', 'transformer_classifier': 's', 'transformer_hybrid': '^'}
 
     # =========================================================================
     # 1. ROC Curves (top-left)
@@ -448,7 +483,7 @@ def plot_model_details(evaluator: ModelEvaluator, save_path: Optional[Path] = No
     accuracies = []
     colors_list = []
 
-    color_map = {'svm': '#3498db', 'transformer_classifier': '#2ecc71', 'transformer_hybrid': '#e74c3c'}
+    color_map = {'svm': '#3498db', 'mlp': '#9b59b6', 'transformer_classifier': '#2ecc71', 'transformer_hybrid': '#e74c3c'}
 
     for model_key, result in results.items():
         if result:

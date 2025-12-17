@@ -351,7 +351,7 @@ def plot_per_family(results: Dict, save_path: Optional[Path] = None):
         models = list(first_family['models'].keys())
         x = np.arange(len(families))
         width = 0.8 / len(models)
-        model_colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']
+        model_colors = ['#3498db', '#9b59b6', '#2ecc71', '#e74c3c']
 
         for i, model in enumerate(models):
             accuracies = [family_data[f]['models'][model]['accuracy'] for f in families]
@@ -648,7 +648,7 @@ def plot_model_comparison(results: Dict, save_path: Optional[Path] = None):
     x = np.arange(len(metrics))
     width = 0.8 / len(model_names)
 
-    colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']
+    colors = ['#3498db', '#9b59b6', '#2ecc71', '#e74c3c']
 
     for i, (model_name, model_data) in enumerate(models.items()):
         if 'error' in model_data:
