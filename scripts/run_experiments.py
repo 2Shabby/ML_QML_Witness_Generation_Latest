@@ -49,36 +49,20 @@ from src.feature_extraction.pauli_features import (
 )
 from src.ml_models.svm_witness import SVMWitnessLearner
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# Import centralized config and utilities
+from src.config import (
+    DEFAULT_N_SAMPLES,
+    DEFAULT_NOISE_RANGE,
+    DEFAULT_CV_FOLDS,
+    DEFAULT_SEEDS,
+    DEFAULT_LOG_FORMAT,
+    RESULTS_DIR,
 )
+from src.utils import convert_to_json_serializable, setup_logging
+
+# Set up logging using centralized utility
+logging.basicConfig(level=logging.INFO, format=DEFAULT_LOG_FORMAT)
 logger = logging.getLogger(__name__)
-
-# Default experiment parameters
-DEFAULT_N_SAMPLES = 2000
-DEFAULT_NOISE_RANGE = (0.0, 0.5)
-DEFAULT_CV_FOLDS = 5
-DEFAULT_SEEDS = [42, 123, 456, 789, 1000]
-
-
-def convert_to_json_serializable(obj):
-    """Recursively convert numpy types to Python native types for JSON serialization."""
-    if isinstance(obj, dict):
-        return {k: convert_to_json_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_to_json_serializable(v) for v in obj]
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, (np.integer, np.int64, np.int32)):
-        return int(obj)
-    elif isinstance(obj, (np.floating, np.float64, np.float32)):
-        return float(obj)
-    elif isinstance(obj, np.bool_):
-        return bool(obj)
-    else:
-        return obj
 
 
 def save_results(results: Dict, experiment_name: str, results_dir: Path) -> str:
@@ -822,11 +806,11 @@ Examples:
 
     args = parser.parse_args()
 
-    # Set up results directory
+    # Set up results directory using centralized default
     if args.results_dir:
         results_dir = Path(args.results_dir)
     else:
-        results_dir = project_root / 'results'
+        results_dir = RESULTS_DIR
 
     noise_range = (args.noise_min, args.noise_max)
 

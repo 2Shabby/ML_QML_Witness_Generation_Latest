@@ -50,59 +50,29 @@ from src.feature_extraction.pauli_features import (
 )
 from src.ml_models.svm_witness import SVMWitnessLearner
 
+# Import centralized config and utilities
+from src.config import (
+    DEFAULT_N_SAMPLES,
+    DEFAULT_NOISE_RANGE,
+    DEFAULT_CV_FOLDS,
+    DEFAULT_SEED,
+    DEFAULT_TRANSFORMER_CONFIG,
+    DEFAULT_LOG_FORMAT,
+    RESULTS_DIR,
+)
+from src.utils import convert_to_json_serializable, setup_logging, TORCH_AVAILABLE
+
 # Try to import transformer (may fail if torch not installed)
-try:
+if TORCH_AVAILABLE:
     import torch
     from src.ml_models.transformer_witness import TransformerWitnessLearner
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
+else:
     print("Warning: PyTorch not installed. Install with: pip install torch")
     print("Transformer experiments will be skipped.")
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Set up logging using centralized utility
+logging.basicConfig(level=logging.INFO, format=DEFAULT_LOG_FORMAT)
 logger = logging.getLogger(__name__)
-
-# Default experiment parameters
-DEFAULT_N_SAMPLES = 5000
-DEFAULT_NOISE_RANGE = (0.0, 0.5)
-DEFAULT_CV_FOLDS = 5
-DEFAULT_SEED = 42
-
-# Transformer hyperparameters (minimal for 36D binary classification)
-DEFAULT_TRANSFORMER_CONFIG = {
-    'd_model': 16,       # Reduced from 64 (36 features don't need large embeddings)
-    'n_heads': 2,        # Reduced from 4
-    'n_layers': 1,       # Reduced from 2 (single layer sufficient)
-    'd_ff': 32,          # Reduced from 128
-    'dropout': 0.1,
-    'learning_rate': 1e-3,
-    'batch_size': 64,
-    'n_epochs': 100,
-    'patience': 15
-}
-
-
-def convert_to_json_serializable(obj):
-    """Recursively convert numpy types to Python native types for JSON serialization."""
-    if isinstance(obj, dict):
-        return {k: convert_to_json_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_to_json_serializable(v) for v in obj]
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, (np.integer, np.int64, np.int32)):
-        return int(obj)
-    elif isinstance(obj, (np.floating, np.float64, np.float32)):
-        return float(obj)
-    elif isinstance(obj, np.bool_):
-        return bool(obj)
-    else:
-        return obj
 
 
 def save_results(results: Dict, experiment_name: str, results_dir: Path) -> str:
@@ -296,7 +266,7 @@ def run_model_comparison(
     logger.info("="*70)
 
     if transformer_config is None:
-        transformer_config = DEFAULT_TRANSFORMER_CONFIG.copy()
+        transformer_config = DEFAULT_TRANSFORMER_CONFIG.to_dict()
 
     np.random.seed(seed)
 
@@ -383,7 +353,7 @@ def run_cross_validation_comparison(
     logger.info("="*70)
 
     if transformer_config is None:
-        transformer_config = DEFAULT_TRANSFORMER_CONFIG.copy()
+        transformer_config = DEFAULT_TRANSFORMER_CONFIG.to_dict()
 
     np.random.seed(seed)
 
@@ -488,7 +458,7 @@ def run_scaling_experiment(
     logger.info("="*70)
 
     if transformer_config is None:
-        transformer_config = DEFAULT_TRANSFORMER_CONFIG.copy()
+        transformer_config = DEFAULT_TRANSFORMER_CONFIG.to_dict()
 
     results = {
         'sample_sizes': sample_sizes,
@@ -663,7 +633,7 @@ def run_witness_analysis(
     logger.info("="*70)
 
     if transformer_config is None:
-        transformer_config = DEFAULT_TRANSFORMER_CONFIG.copy()
+        transformer_config = DEFAULT_TRANSFORMER_CONFIG.to_dict()
 
     np.random.seed(seed)
 
@@ -854,25 +824,25 @@ Examples:
         help='Directory to save results (default: results/)'
     )
 
-    # Transformer hyperparameters (use centralized defaults)
-    parser.add_argument('--d-model', type=int, default=DEFAULT_TRANSFORMER_CONFIG['d_model'],
-                        help='Transformer hidden dimension (default: 16)')
-    parser.add_argument('--n-heads', type=int, default=DEFAULT_TRANSFORMER_CONFIG['n_heads'],
-                        help='Number of attention heads (default: 2)')
-    parser.add_argument('--n-layers', type=int, default=DEFAULT_TRANSFORMER_CONFIG['n_layers'],
-                        help='Number of transformer layers (default: 1)')
-    parser.add_argument('--batch-size', type=int, default=DEFAULT_TRANSFORMER_CONFIG['batch_size'],
-                        help='Training batch size (default: 64)')
-    parser.add_argument('--n-epochs', type=int, default=DEFAULT_TRANSFORMER_CONFIG['n_epochs'],
-                        help='Maximum training epochs (default: 100)')
+    # Transformer hyperparameters (use centralized defaults from config dataclass)
+    parser.add_argument('--d-model', type=int, default=DEFAULT_TRANSFORMER_CONFIG.d_model,
+                        help=f'Transformer hidden dimension (default: {DEFAULT_TRANSFORMER_CONFIG.d_model})')
+    parser.add_argument('--n-heads', type=int, default=DEFAULT_TRANSFORMER_CONFIG.n_heads,
+                        help=f'Number of attention heads (default: {DEFAULT_TRANSFORMER_CONFIG.n_heads})')
+    parser.add_argument('--n-layers', type=int, default=DEFAULT_TRANSFORMER_CONFIG.n_layers,
+                        help=f'Number of transformer layers (default: {DEFAULT_TRANSFORMER_CONFIG.n_layers})')
+    parser.add_argument('--batch-size', type=int, default=DEFAULT_TRANSFORMER_CONFIG.batch_size,
+                        help=f'Training batch size (default: {DEFAULT_TRANSFORMER_CONFIG.batch_size})')
+    parser.add_argument('--n-epochs', type=int, default=DEFAULT_TRANSFORMER_CONFIG.n_epochs,
+                        help=f'Maximum training epochs (default: {DEFAULT_TRANSFORMER_CONFIG.n_epochs})')
 
     args = parser.parse_args()
 
-    # Set up results directory
+    # Set up results directory using centralized default
     if args.results_dir:
         results_dir = Path(args.results_dir)
     else:
-        results_dir = project_root / 'results'
+        results_dir = RESULTS_DIR
 
     noise_range = (args.noise_min, args.noise_max)
 
