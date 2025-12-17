@@ -23,12 +23,26 @@ See [GOAL.md](GOAL.md) for the complete research objective.
 
 ## Approach
 
+Two classification pipelines are available:
+
+**1. Linear SVM (Baseline)**
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐     ┌──────────────────┐
 │ 3-Qubit States  │ ──▶ │ 36D Features     │ ──▶ │ Linear SVM      │ ──▶ │ Witness Operator │
 │ (DensityMatrix) │     │ (1+2 body Pauli) │     │ Hyperplane w·x+b│     │ W = Σ wₖPₖ       │
 └─────────────────┘     └──────────────────┘     └─────────────────┘     └──────────────────┘
 ```
+
+**2. Transformer (Advanced)**
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐     ┌──────────────────┐
+│ 3-Qubit States  │ ──▶ │ 36D Features     │ ──▶ │ Transformer         │ ──▶ │ Classification   │
+│ (DensityMatrix) │     │ (1+2 body Pauli) │     │ (Classifier/Hybrid) │     │ + Witness (Hybrid)│
+└─────────────────┘     └──────────────────┘     └─────────────────────┘     └──────────────────┘
+```
+
+- **Classifier Mode**: Pure transformer for classification (potentially captures non-linear boundaries)
+- **Hybrid Mode**: Constrained architecture that outputs interpretable witness coefficients
 
 **Feature Space (36D):**
 - 9 single-qubit Paulis: X₁, Y₁, Z₁, X₂, Y₂, Z₂, X₃, Y₃, Z₃
@@ -42,24 +56,30 @@ See [GOAL.md](GOAL.md) for the complete research objective.
 ```
 ML_QML_Witness_Generation/
 ├── GOAL.md                     # CANONICAL research objective
-├── CURRENT_STATUS.md           # CANONICAL codebase status (v4.0)
+├── CURRENT_STATUS.md           # CANONICAL codebase status (v5.0)
 ├── AUDIT_REPORT.md             # Verification results
 ├── RESTRUCTURE_PLAN.md         # Historical reference
 │
 ├── src/
 │   ├── quantum_states/
-│   │   └── state_generation.py # State generators, NPT oracle
+│   │   └── state_generation.py    # State generators, NPT oracle
 │   ├── feature_extraction/
-│   │   └── pauli_features.py   # 36D restricted feature extraction
+│   │   └── pauli_features.py      # 36D restricted feature extraction
 │   ├── ml_models/
-│   │   └── svm_witness.py      # Linear SVM witness learner
+│   │   ├── svm_witness.py         # Linear SVM witness learner
+│   │   └── transformer_witness.py # Transformer-based classifier + hybrid witness
 │   └── utils/
-│       └── __init__.py         # Minimal utilities
+│       └── __init__.py            # Minimal utilities
+│
+├── scripts/
+│   ├── run_experiments.py              # SVM experiments
+│   └── run_transformer_experiments.py  # Transformer vs SVM comparison
 │
 ├── tests/
 │   ├── test_state_generation.py
 │   ├── test_feature_extraction.py
-│   └── test_integration.py
+│   ├── test_integration.py
+│   └── test_transformer_witness.py     # Transformer model tests
 │
 └── requirements.txt
 ```
@@ -134,6 +154,8 @@ print(f"Witness terms: {len(witness)}")
 | 3-qubit state generators | ✅ Ready | GHZ, W, cluster, product |
 | 36D feature extraction | ✅ Ready | 1+2 body Paulis only |
 | Linear SVM witness learner | ✅ Ready | With SparsePauliOp extraction |
+| Transformer classifier | ✅ Ready | Pure classification mode |
+| Hybrid transformer witness | ✅ Ready | Interpretable witness extraction |
 | Distillability dataset | ✅ Ready | Correct NPT-based labels |
 
 See [CURRENT_STATUS.md](CURRENT_STATUS.md) for detailed module status.
@@ -141,7 +163,13 @@ See [CURRENT_STATUS.md](CURRENT_STATUS.md) for detailed module status.
 ## Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (SVM + basic tests)
+python -m pytest tests/ -v --ignore=tests/test_transformer_witness.py
+
+# Run transformer tests (requires PyTorch)
+python -m pytest tests/test_transformer_witness.py -v
+
+# Run all tests including transformer
 python -m pytest tests/ -v
 
 # Run NPT oracle tests
@@ -149,6 +177,28 @@ python -m pytest tests/test_state_generation.py::TestNPTOracleAndDistillability 
 
 # Run integration pipeline test
 python -m pytest tests/test_integration.py::TestIntegration::test_3qubit_distillability_pipeline -v -s
+```
+
+## Running Experiments
+
+```bash
+# SVM experiments
+python scripts/run_experiments.py --experiment ablation --n-samples 5000
+
+# Transformer vs SVM comparison
+python scripts/run_transformer_experiments.py --experiment comparison --n-samples 5000
+
+# Cross-validation comparison
+python scripts/run_transformer_experiments.py --experiment cv --n-samples 5000
+
+# Scaling study (different dataset sizes)
+python scripts/run_transformer_experiments.py --experiment scaling
+
+# Witness coefficient analysis
+python scripts/run_transformer_experiments.py --experiment witness --n-samples 5000
+
+# Run all transformer experiments
+python scripts/run_transformer_experiments.py --experiment all --n-samples 5000
 ```
 
 ## Documents
@@ -162,13 +212,18 @@ python -m pytest tests/test_integration.py::TestIntegration::test_3qubit_distill
 
 ## Dependencies
 
-**Required:**
+**Required (Core):**
 ```
 qiskit>=1.0.0
 scikit-learn>=1.3.0
 numpy>=1.24.0
 scipy>=1.11.0
 pytest>=7.4.0
+```
+
+**Required (Transformer models):**
+```
+torch>=2.0.0
 ```
 
 ## License
