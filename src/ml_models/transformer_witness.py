@@ -681,6 +681,169 @@ class TransformerWitnessLearner:
 
         return self.metrics
 
+    def fit(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_val: np.ndarray,
+        y_val: np.ndarray,
+        verbose: bool = True
+    ) -> Dict[str, float]:
+        """
+        Train the transformer on pre-split data (no internal splitting).
+
+        Use this method when you have already split your data to avoid
+        data leakage issues.
+
+        Args:
+            X_train: Training feature matrix
+            y_train: Training labels
+            X_val: Validation/test feature matrix
+            y_val: Validation/test labels
+            verbose: Whether to log progress
+
+        Returns:
+            Dictionary of performance metrics
+        """
+        if verbose:
+            logger.info(f"Training Transformer Witness Learner ({self.mode} mode)...")
+            logger.info(f"Device: {self.device}")
+            logger.info(f"Training samples: {len(X_train)}, Val samples: {len(X_val)}, Features: {X_train.shape[1]}")
+            logger.info(f"Architecture: d_model={self.d_model}, n_layers={self.n_layers}, n_heads={self.n_heads}")
+
+        # Convert to tensors
+        X_train_t = torch.tensor(X_train, dtype=torch.float32, device=self.device)
+        y_train_t = torch.tensor(y_train, dtype=torch.long, device=self.device)
+        X_val_t = torch.tensor(X_val, dtype=torch.float32, device=self.device)
+        y_val_t = torch.tensor(y_val, dtype=torch.long, device=self.device)
+
+        # Create data loaders
+        train_dataset = TensorDataset(X_train_t, y_train_t)
+        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+
+        # Optimizer and loss
+        optimizer = optim.AdamW(
+            self.model.parameters(),
+            lr=self.learning_rate,
+            weight_decay=self.weight_decay
+        )
+
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=0.5, patience=5
+        )
+
+        criterion = nn.CrossEntropyLoss()
+
+        # Training loop with early stopping
+        best_val_loss = float('inf')
+        best_model_state = None
+        patience_counter = 0
+
+        self.training_history = []
+
+        for epoch in range(self.n_epochs):
+            # Training
+            self.model.train()
+            train_loss = 0.0
+            train_correct = 0
+            train_total = 0
+
+            for batch_X, batch_y in train_loader:
+                optimizer.zero_grad()
+
+                logits = self.model(batch_X)
+                loss = criterion(logits, batch_y)
+
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                optimizer.step()
+
+                train_loss += loss.item() * batch_X.size(0)
+                _, predicted = torch.max(logits, 1)
+                train_correct += (predicted == batch_y).sum().item()
+                train_total += batch_y.size(0)
+
+            train_loss /= train_total
+            train_acc = train_correct / train_total
+
+            # Validation
+            self.model.eval()
+            with torch.no_grad():
+                val_logits = self.model(X_val_t)
+                val_loss = criterion(val_logits, y_val_t).item()
+                _, val_predicted = torch.max(val_logits, 1)
+                val_acc = (val_predicted == y_val_t).float().mean().item()
+
+            self.training_history.append({
+                'epoch': epoch + 1,
+                'train_loss': train_loss,
+                'train_acc': train_acc,
+                'val_loss': val_loss,
+                'val_acc': val_acc
+            })
+
+            scheduler.step(val_loss)
+
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                patience_counter = 0
+            else:
+                patience_counter += 1
+
+            if verbose and (epoch + 1) % 10 == 0:
+                logger.info(f"Epoch {epoch+1}/{self.n_epochs}: "
+                          f"train_loss={train_loss:.4f}, train_acc={train_acc:.4f}, "
+                          f"val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
+
+            if patience_counter >= self.patience:
+                if verbose:
+                    logger.info(f"Early stopping at epoch {epoch+1}")
+                break
+
+        # Load best model
+        if best_model_state is not None:
+            self.model.load_state_dict({k: v.to(self.device) for k, v in best_model_state.items()})
+
+        self.is_trained = True
+
+        # Extract witness operator (for hybrid mode)
+        if self.mode == 'hybrid':
+            self._extract_witness_operator(X_train_t)
+
+        # Final evaluation
+        self.model.eval()
+        with torch.no_grad():
+            train_logits = self.model(X_train_t)
+            val_logits = self.model(X_val_t)
+
+            _, train_pred = torch.max(train_logits, 1)
+            _, val_pred = torch.max(val_logits, 1)
+
+            train_pred = train_pred.cpu().numpy()
+            val_pred = val_pred.cpu().numpy()
+
+        self.metrics = {
+            'train_accuracy': accuracy_score(y_train, train_pred),
+            'test_accuracy': accuracy_score(y_val, val_pred),
+            'train_precision': precision_score(y_train, train_pred, zero_division=0),
+            'test_precision': precision_score(y_val, val_pred, zero_division=0),
+            'train_recall': recall_score(y_train, train_pred, zero_division=0),
+            'test_recall': recall_score(y_val, val_pred, zero_division=0),
+            'n_parameters': sum(p.numel() for p in self.model.parameters()),
+            'n_epochs_trained': len(self.training_history),
+            'best_val_loss': best_val_loss
+        }
+
+        if verbose:
+            logger.info("Training complete!")
+            logger.info(f"Test Accuracy: {self.metrics['test_accuracy']:.4f}")
+            logger.info(f"Test Precision: {self.metrics['test_precision']:.4f}")
+            logger.info(f"Test Recall: {self.metrics['test_recall']:.4f}")
+            logger.info(f"Parameters: {self.metrics['n_parameters']}")
+
+        return self.metrics
+
     def _extract_witness_operator(self, X: torch.Tensor):
         """
         Extract witness operator from hybrid model.
