@@ -1,32 +1,16 @@
-# Quantum Computing Libraries
+# Core (REQUIRED for 3-qubit distillability witness learning)
 qiskit>=1.0.0
-qiskit-aer>=0.13.0
-qiskit-machine-learning>=0.7.0
-qiskit-algorithms>=0.3.0
-
-# Classical Machine Learning
-tensorflow>=2.15.0
 scikit-learn>=1.3.0
 numpy>=1.24.0
 scipy>=1.11.0
 
-# Optimization and Convex Programming
-cvxpy>=1.4.0
-cvxpylayers>=0.1.6
-
-# Data Handling and Visualization
-pandas>=2.0.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-
-# Configuration and Experiment Management
-hydra-core>=1.3.0
-pyyaml>=6.0
-
 # Testing
 pytest>=7.4.0
-pytest-cov>=4.1.0
 
-# Utilities
+# Optional (nice-to-have for analysis/visualization)
+matplotlib>=3.7.0
 tqdm>=4.65.0
 joblib>=1.3.0
+
+# Future (DPS hierarchy for rigorous SDP-based labeling - uncomment when needed)
+# cvxpy>=1.4.0
