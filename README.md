@@ -57,11 +57,12 @@ Two classification pipelines are available:
 ```
 ML_QML_Witness_Generation/
 ├── GOAL.md                     # CANONICAL research objective
-├── CURRENT_STATUS.md           # CANONICAL codebase status (v6.0)
+├── CURRENT_STATUS.md           # CANONICAL codebase status (v7.0)
 ├── INITIAL_FINDINGS.md         # Experimental results + conclusions
 ├── AUDIT_REPORT.md             # Verification results
 │
 ├── src/
+│   ├── config.py                     # Centralized configuration (dataclasses)
 │   ├── quantum_states/
 │   │   ├── state_generation.py       # State generators, NPT oracle
 │   │   └── distillability_oracles.py # NPT, PPT, DPS Level 2 oracles
@@ -69,12 +70,16 @@ ML_QML_Witness_Generation/
 │   │   └── pauli_features.py         # 36D restricted feature extraction
 │   ├── ml_models/
 │   │   ├── svm_witness.py            # Linear SVM witness learner
-│   │   └── transformer_witness.py    # Transformer + hybrid witness
+│   │   ├── transformer_witness.py    # Transformer + hybrid witness
+│   │   └── witness_utils.py          # Shared witness extraction utilities
 │   └── utils/
+│       └── __init__.py               # Logging, seeds, timing utilities
 │
 ├── scripts/
 │   ├── run_experiments.py              # SVM experiments
 │   ├── run_transformer_experiments.py  # Transformer vs SVM comparison
+│   ├── plot_results.py                 # Visualization and plotting
+│   ├── run_comparative_analysis.py     # Model comparison analysis
 │   └── investigate_negative_results.py # Adversarial noise investigation
 │
 ├── tests/
@@ -84,6 +89,8 @@ ML_QML_Witness_Generation/
 │   ├── test_dps_oracle.py              # DPS oracle tests (24 tests)
 │   └── test_transformer_witness.py     # Transformer model tests
 │
+├── results/                    # Experiment results (JSON)
+├── figures/                    # Generated plots (PNG)
 └── requirements.txt
 ```
 
@@ -190,23 +197,28 @@ python -m pytest tests/test_integration.py::TestIntegration::test_3qubit_distill
 ## Running Experiments
 
 ```bash
-# SVM experiments
+# SVM experiments (ablation, cross-validation, per-family, noise, witness)
+python scripts/run_experiments.py --experiment all --n-samples 5000
 python scripts/run_experiments.py --experiment ablation --n-samples 5000
 
 # Transformer vs SVM comparison
 python scripts/run_transformer_experiments.py --experiment comparison --n-samples 5000
-
-# Cross-validation comparison
 python scripts/run_transformer_experiments.py --experiment cv --n-samples 5000
-
-# Scaling study (different dataset sizes)
-python scripts/run_transformer_experiments.py --experiment scaling
-
-# Witness coefficient analysis
-python scripts/run_transformer_experiments.py --experiment witness --n-samples 5000
+python scripts/run_transformer_experiments.py --experiment family --n-samples 2000
+python scripts/run_transformer_experiments.py --experiment ablation --n-samples 2000
 
 # Run all transformer experiments
 python scripts/run_transformer_experiments.py --experiment all --n-samples 5000
+
+# Generate plots from results
+python scripts/plot_results.py --plot all --save
+python scripts/plot_results.py --plot dashboard --save
+python scripts/plot_results.py --plot ablation
+python scripts/plot_results.py --plot family
+python scripts/plot_results.py --plot noise
+
+# Comparative analysis
+python scripts/run_comparative_analysis.py
 ```
 
 ## Documents
