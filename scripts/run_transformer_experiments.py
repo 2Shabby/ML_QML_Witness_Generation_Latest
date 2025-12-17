@@ -608,6 +608,330 @@ def run_hyperparameter_search(
     return results
 
 
+def run_per_family_comparison(
+    n_samples_per_family: int = 400,
+    noise_range: Tuple[float, float] = DEFAULT_NOISE_RANGE,
+    seed: int = DEFAULT_SEED,
+    transformer_config: Dict = None,
+    results_dir: Optional[Path] = None
+) -> Dict:
+    """
+    Compare SVM, Transformer Classifier, and Hybrid on each state family.
+
+    Evaluates per-family accuracy for GHZ, W, Cluster, Random, Product states.
+
+    Args:
+        n_samples_per_family: Samples per state family for testing
+        noise_range: Range of noise levels
+        seed: Random seed
+        transformer_config: Configuration for transformer
+        results_dir: Directory to save results
+
+    Returns:
+        Dictionary with per-family comparison results
+    """
+    logger.info("="*70)
+    logger.info("PER-FAMILY COMPARISON: All Models by State Type")
+    logger.info("="*70)
+
+    if transformer_config is None:
+        transformer_config = DEFAULT_TRANSFORMER_CONFIG.to_dict()
+
+    np.random.seed(seed)
+
+    # Generate training data (mixed families)
+    logger.info("\n[1/4] Generating training dataset...")
+    train_n_samples = n_samples_per_family * 5
+    features, labels, states, basis = generate_dataset(train_n_samples, noise_range, seed)
+
+    # Split for training
+    from sklearn.model_selection import train_test_split
+    X_train, X_val, y_train, y_val = train_test_split(
+        features, labels, test_size=0.2, random_state=seed, stratify=labels
+    )
+
+    # Train all models
+    logger.info("\n[2/4] Training models...")
+
+    # SVM
+    from sklearn.svm import SVC
+    svm = SVC(kernel='linear', C=1.0, random_state=seed, probability=True)
+    svm.fit(X_train, y_train)
+
+    # Transformers
+    tf_classifier = None
+    tf_hybrid = None
+    if TORCH_AVAILABLE:
+        tf_classifier = TransformerWitnessLearner(
+            pauli_basis=basis, mode='classifier', **transformer_config, random_state=seed
+        )
+        tf_classifier.fit(X_train, y_train, X_val, y_val, verbose=False)
+
+        tf_hybrid = TransformerWitnessLearner(
+            pauli_basis=basis, mode='hybrid', **transformer_config, random_state=seed
+        )
+        tf_hybrid.fit(X_train, y_train, X_val, y_val, verbose=False)
+
+    # Generate test data per family
+    logger.info("\n[3/4] Generating per-family test sets...")
+
+    families = {
+        'ghz': {'states': [], 'labels': []},
+        'w': {'states': [], 'labels': []},
+        'cluster': {'states': [], 'labels': []},
+        'random': {'states': [], 'labels': []},
+        'product': {'states': [], 'labels': []}
+    }
+
+    # GHZ states
+    for i in range(n_samples_per_family):
+        noise = np.random.uniform(*noise_range)
+        state = generate_entangled_state(3, 'ghz', noise_level=noise, seed=seed+i)
+        families['ghz']['states'].append(state)
+        families['ghz']['labels'].append(1 if check_npt_any_bipartition(state) else 0)
+
+    # W states
+    for i in range(n_samples_per_family):
+        noise = np.random.uniform(*noise_range)
+        state = generate_entangled_state(3, 'w', noise_level=noise, seed=seed+1000+i)
+        families['w']['states'].append(state)
+        families['w']['labels'].append(1 if check_npt_any_bipartition(state) else 0)
+
+    # Cluster states
+    for i in range(n_samples_per_family):
+        noise = np.random.uniform(*noise_range)
+        state = generate_noisy_cluster_state(3, noise_level=noise, seed=seed+2000+i)
+        families['cluster']['states'].append(state)
+        families['cluster']['labels'].append(1 if check_npt_any_bipartition(state) else 0)
+
+    # Random mixed states
+    for i in range(n_samples_per_family):
+        state = generate_random_density_matrix(3, seed=seed+3000+i)
+        families['random']['states'].append(state)
+        families['random']['labels'].append(1 if check_npt_any_bipartition(state) else 0)
+
+    # Product states (always non-distillable)
+    for i in range(n_samples_per_family):
+        state = generate_3qubit_product_state(seed=seed+4000+i)
+        families['product']['states'].append(state)
+        families['product']['labels'].append(0)
+
+    # Evaluate each family
+    logger.info("\n[4/4] Evaluating per family...")
+
+    results = {
+        'n_samples_per_family': n_samples_per_family,
+        'noise_range': list(noise_range),
+        'seed': seed,
+        'per_family': {}
+    }
+
+    for family_name, family_data in families.items():
+        family_features = extract_features_batch(family_data['states'], basis, verbose=False)
+        family_labels = np.array(family_data['labels'])
+
+        family_results = {
+            'n_samples': len(family_labels),
+            'n_distillable': int(np.sum(family_labels)),
+            'distillable_fraction': float(np.mean(family_labels)),
+            'models': {}
+        }
+
+        # SVM predictions
+        svm_pred = svm.predict(family_features)
+        family_results['models']['svm'] = {
+            'accuracy': float(accuracy_score(family_labels, svm_pred)),
+            'precision': float(precision_score(family_labels, svm_pred, zero_division=0)),
+            'recall': float(recall_score(family_labels, svm_pred, zero_division=0)),
+            'f1': float(f1_score(family_labels, svm_pred, zero_division=0))
+        }
+
+        # Transformer predictions
+        if TORCH_AVAILABLE and tf_classifier is not None:
+            tf_class_pred = tf_classifier.predict(family_features)
+            family_results['models']['transformer_classifier'] = {
+                'accuracy': float(accuracy_score(family_labels, tf_class_pred)),
+                'precision': float(precision_score(family_labels, tf_class_pred, zero_division=0)),
+                'recall': float(recall_score(family_labels, tf_class_pred, zero_division=0)),
+                'f1': float(f1_score(family_labels, tf_class_pred, zero_division=0))
+            }
+
+            tf_hybrid_pred = tf_hybrid.predict(family_features)
+            family_results['models']['transformer_hybrid'] = {
+                'accuracy': float(accuracy_score(family_labels, tf_hybrid_pred)),
+                'precision': float(precision_score(family_labels, tf_hybrid_pred, zero_division=0)),
+                'recall': float(recall_score(family_labels, tf_hybrid_pred, zero_division=0)),
+                'f1': float(f1_score(family_labels, tf_hybrid_pred, zero_division=0))
+            }
+
+        results['per_family'][family_name] = family_results
+
+        # Log results
+        logger.info(f"\n{family_name.upper()}:")
+        for model_name, metrics in family_results['models'].items():
+            logger.info(f"  {model_name:25s}: acc={metrics['accuracy']:.3f}, f1={metrics['f1']:.3f}")
+
+    if results_dir:
+        save_results(results, 'per_family_comparison', results_dir)
+
+    return results
+
+
+def run_ablation_comparison(
+    n_samples: int = DEFAULT_N_SAMPLES,
+    noise_range: Tuple[float, float] = DEFAULT_NOISE_RANGE,
+    n_folds: int = DEFAULT_CV_FOLDS,
+    seed: int = DEFAULT_SEED,
+    transformer_config: Dict = None,
+    results_dir: Optional[Path] = None
+) -> Dict:
+    """
+    Compare 36D restricted vs 63D full features for all models.
+
+    Args:
+        n_samples: Number of samples
+        noise_range: Range of noise levels
+        n_folds: Number of CV folds
+        seed: Random seed
+        transformer_config: Configuration for transformer
+        results_dir: Directory to save results
+
+    Returns:
+        Dictionary with ablation comparison results
+    """
+    logger.info("="*70)
+    logger.info("ABLATION COMPARISON: 36D vs 63D for All Models")
+    logger.info("="*70)
+
+    if transformer_config is None:
+        transformer_config = DEFAULT_TRANSFORMER_CONFIG.to_dict()
+
+    np.random.seed(seed)
+    from scipy.stats import ttest_rel
+
+    # Generate dataset
+    logger.info("\n[1/3] Generating dataset...")
+    states, labels = generate_distillability_dataset(
+        n_samples=n_samples,
+        noise_range=noise_range,
+        seed=seed
+    )
+    labels = np.array(labels)
+
+    # Create feature sets
+    logger.info("\n[2/3] Extracting features...")
+    basis_36d = create_sparse_measurement_set(3, 'two_body')
+    basis_63d = get_pauli_basis(3, include_identity=False)
+
+    features_36d = extract_features_batch(states, basis_36d, verbose=False)
+    features_63d = extract_features_batch(states, basis_63d, verbose=False)
+
+    logger.info(f"  36D features: {features_36d.shape}")
+    logger.info(f"  63D features: {features_63d.shape}")
+
+    # Cross-validation
+    logger.info(f"\n[3/3] Running {n_folds}-fold cross-validation...")
+
+    from sklearn.svm import SVC
+    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
+
+    # Results containers
+    model_configs = ['svm']
+    if TORCH_AVAILABLE:
+        model_configs.extend(['transformer_classifier', 'transformer_hybrid'])
+
+    results_by_model = {}
+    for model in model_configs:
+        results_by_model[model] = {
+            '36d': {'accuracy': [], 'f1': []},
+            '63d': {'accuracy': [], 'f1': []}
+        }
+
+    for fold, (train_idx, test_idx) in enumerate(skf.split(features_36d, labels)):
+        logger.info(f"\n--- Fold {fold + 1}/{n_folds} ---")
+
+        # Train and evaluate each model on both feature sets
+        for dim, features in [('36d', features_36d), ('63d', features_63d)]:
+            X_train, X_test = features[train_idx], features[test_idx]
+            y_train, y_test = labels[train_idx], labels[test_idx]
+            basis = basis_36d if dim == '36d' else basis_63d
+
+            # SVM
+            svm = SVC(kernel='linear', C=1.0, random_state=seed)
+            svm.fit(X_train, y_train)
+            svm_pred = svm.predict(X_test)
+            results_by_model['svm'][dim]['accuracy'].append(accuracy_score(y_test, svm_pred))
+            results_by_model['svm'][dim]['f1'].append(f1_score(y_test, svm_pred, zero_division=0))
+
+            # Transformers
+            if TORCH_AVAILABLE:
+                for mode in ['classifier', 'hybrid']:
+                    key = f'transformer_{mode}'
+                    learner = TransformerWitnessLearner(
+                        pauli_basis=basis, mode=mode, **transformer_config, random_state=seed+fold
+                    )
+                    learner.fit(X_train, y_train, X_test, y_test, verbose=False)
+                    pred = learner.predict(X_test)
+                    results_by_model[key][dim]['accuracy'].append(accuracy_score(y_test, pred))
+                    results_by_model[key][dim]['f1'].append(f1_score(y_test, pred, zero_division=0))
+
+    # Compile results
+    results = {
+        'n_samples': n_samples,
+        'noise_range': list(noise_range),
+        'n_folds': n_folds,
+        'seed': seed,
+        'models': {}
+    }
+
+    for model_name, model_data in results_by_model.items():
+        acc_36d = np.array(model_data['36d']['accuracy'])
+        acc_63d = np.array(model_data['63d']['accuracy'])
+
+        t_stat, p_value = ttest_rel(acc_63d, acc_36d)
+
+        results['models'][model_name] = {
+            'restricted_36d': {
+                'accuracy_mean': float(np.mean(acc_36d)),
+                'accuracy_std': float(np.std(acc_36d)),
+                'f1_mean': float(np.mean(model_data['36d']['f1'])),
+                'fold_accuracies': [float(x) for x in acc_36d]
+            },
+            'full_63d': {
+                'accuracy_mean': float(np.mean(acc_63d)),
+                'accuracy_std': float(np.std(acc_63d)),
+                'f1_mean': float(np.mean(model_data['63d']['f1'])),
+                'fold_accuracies': [float(x) for x in acc_63d]
+            },
+            'statistical_comparison': {
+                'accuracy_gap': float(np.mean(acc_63d) - np.mean(acc_36d)),
+                'paired_ttest_t': float(t_stat),
+                'paired_ttest_p': float(p_value),
+                'significant_at_0.05': p_value < 0.05
+            }
+        }
+
+    # Summary
+    logger.info("\n" + "="*70)
+    logger.info("ABLATION COMPARISON RESULTS")
+    logger.info("="*70)
+    logger.info(f"{'Model':25s} | {'36D Acc':>10} | {'63D Acc':>10} | {'Gap':>8} | {'p-value':>8}")
+    logger.info("-" * 70)
+
+    for model_name, model_results in results['models'].items():
+        acc_36 = model_results['restricted_36d']['accuracy_mean']
+        acc_63 = model_results['full_63d']['accuracy_mean']
+        gap = model_results['statistical_comparison']['accuracy_gap']
+        p_val = model_results['statistical_comparison']['paired_ttest_p']
+        sig = "*" if model_results['statistical_comparison']['significant_at_0.05'] else ""
+        logger.info(f"{model_name:25s} | {acc_36:>10.4f} | {acc_63:>10.4f} | {gap:>+8.4f} | {p_val:>7.4f}{sig}")
+
+    if results_dir:
+        save_results(results, 'ablation_comparison', results_dir)
+
+    return results
+
+
 def run_witness_analysis(
     n_samples: int = DEFAULT_N_SAMPLES,
     noise_range: Tuple[float, float] = DEFAULT_NOISE_RANGE,
@@ -738,7 +1062,7 @@ def run_all_experiments(
     logger.info("RUNNING ALL TRANSFORMER EXPERIMENTS")
     logger.info("="*70)
 
-    transformer_config = DEFAULT_TRANSFORMER_CONFIG.copy()
+    transformer_config = DEFAULT_TRANSFORMER_CONFIG.to_dict()
 
     all_results = {}
 
@@ -751,6 +1075,18 @@ def run_all_experiments(
     # Cross-validation
     all_results['cross_validation'] = run_cross_validation_comparison(
         n_samples=n_samples, noise_range=noise_range, n_folds=5, seed=seed,
+        transformer_config=transformer_config, results_dir=results_dir
+    )
+
+    # Per-family comparison
+    all_results['per_family'] = run_per_family_comparison(
+        n_samples_per_family=n_samples // 5, noise_range=noise_range, seed=seed,
+        transformer_config=transformer_config, results_dir=results_dir
+    )
+
+    # Ablation study (36D vs 63D)
+    all_results['ablation'] = run_ablation_comparison(
+        n_samples=n_samples, noise_range=noise_range, seed=seed,
         transformer_config=transformer_config, results_dir=results_dir
     )
 
@@ -785,7 +1121,7 @@ Examples:
         '--experiment',
         type=str,
         required=True,
-        choices=['comparison', 'cv', 'scaling', 'witness', 'hyperparam', 'all'],
+        choices=['comparison', 'cv', 'scaling', 'witness', 'hyperparam', 'family', 'ablation', 'all'],
         help='Which experiment to run'
     )
 
@@ -896,6 +1232,22 @@ Examples:
             n_samples=args.n_samples,
             noise_range=noise_range,
             seed=args.seed,
+            results_dir=results_dir
+        )
+    elif args.experiment == 'family':
+        run_per_family_comparison(
+            n_samples_per_family=args.n_samples // 5,
+            noise_range=noise_range,
+            seed=args.seed,
+            transformer_config=transformer_config,
+            results_dir=results_dir
+        )
+    elif args.experiment == 'ablation':
+        run_ablation_comparison(
+            n_samples=args.n_samples,
+            noise_range=noise_range,
+            seed=args.seed,
+            transformer_config=transformer_config,
             results_dir=results_dir
         )
     elif args.experiment == 'all':
