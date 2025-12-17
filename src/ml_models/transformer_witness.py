@@ -95,7 +95,8 @@ class TransformerBlock(nn.Module):
             embed_dim=d_model,
             num_heads=n_heads,
             dropout=dropout,
-            batch_first=True
+            batch_first=True,
+            average_attn_weights=False  # Return per-head attention weights
         )
 
         self.feed_forward = nn.Sequential(
@@ -560,9 +561,9 @@ class TransformerWitnessLearner:
             weight_decay=self.weight_decay
         )
 
-        # Learning rate scheduler
+        # Learning rate scheduler (verbose removed in newer PyTorch versions)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=0.5, patience=5, verbose=verbose
+            optimizer, mode='min', factor=0.5, patience=5
         )
 
         criterion = nn.CrossEntropyLoss()
