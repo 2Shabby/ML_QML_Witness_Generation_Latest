@@ -143,6 +143,22 @@ We implemented a minimal transformer architecture to compare against linear SVM 
 
 4. **Minimal architecture sufficient**: Only ~3k parameters are needed - the task doesn't require large models, but does benefit from the attention mechanism's ability to model feature interactions.
 
+#### Witness Coefficient Comparison
+
+Both models use 36 terms and require 12 measurement settings, but learn **different witness operators**:
+
+| Rank | SVM Witness | Coefficient | Transformer Witness | Coefficient |
+|------|-------------|-------------|---------------------|-------------|
+| 1 | IYI | 1.21 | XII | 1.72 |
+| 2 | XIY | 0.85 | IZZ | 1.44 |
+| 3 | XZI | 0.83 | ZZI | 1.10 |
+| 4 | ZZI | 0.69 | IIX | 1.09 |
+| 5 | XYI | 0.63 | ZIZ | 0.88 |
+
+**Coefficient correlation: 0.26** (weakly correlated)
+
+**Key Insight:** The transformer learns a fundamentally different witness operator than SVM. Despite low correlation between coefficient vectors, the transformer's witness achieves perfect classification while SVM's achieves 86%. This suggests the transformer discovers a more optimal hyperplane in the feature space that better separates distillable from non-distillable states.
+
 ---
 
 ## Gap Analysis: What's Missing from GOAL.md
