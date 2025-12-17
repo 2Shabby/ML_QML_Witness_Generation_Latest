@@ -823,6 +823,14 @@ class TransformerWitnessLearner:
 
         logger.info(f"Sparse witness: {len(pauli_strings)} terms (threshold={threshold})")
 
+        # Handle case where no coefficients exceed threshold
+        if len(pauli_strings) == 0:
+            logger.warning(
+                f"No coefficients exceed threshold {threshold}. "
+                f"Returning full witness operator instead."
+            )
+            return self.witness_operator
+
         return SparsePauliOp(pauli_strings, coeffs=coefficients)
 
     def evaluate_witness(
