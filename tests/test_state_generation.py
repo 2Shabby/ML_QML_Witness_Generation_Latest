@@ -14,7 +14,12 @@ from src.quantum_states.state_generation import (
     generate_werner_state,
     generate_dataset,
     check_ppt_criterion,
-    partial_transpose
+    partial_transpose,
+    check_npt_any_bipartition,
+    generate_noisy_cluster_state,
+    generate_3qubit_product_state,
+    generate_distillability_dataset,
+    _permute_qubits
 )
 
 
@@ -144,6 +149,177 @@ class TestStateGeneration:
         # Bell state should not be PPT
         rho_bell = generate_bell_state(bell_type=0)
         assert not check_ppt_criterion(rho_bell, dims=[2, 2])
+
+
+class TestNPTOracleAndDistillability:
+    """Test NPT oracle and 3-qubit distillability functions."""
+
+    def test_permute_qubits_identity(self):
+        """Test that identity permutation leaves state unchanged."""
+        ghz = generate_entangled_state(3, 'ghz', noise_level=0.0)
+        rho_data = np.asarray(ghz.data)
+
+        # Identity permutation
+        rho_permuted = _permute_qubits(rho_data, [0, 1, 2])
+
+        assert np.allclose(rho_data, rho_permuted), "Identity permutation should not change state"
+
+    def test_permute_qubits_swap(self):
+        """Test that permutation preserves trace and Hermiticity."""
+        ghz = generate_entangled_state(3, 'ghz', noise_level=0.1, seed=42)
+        rho_data = np.asarray(ghz.data)
+
+        # Swap qubits 0 and 1
+        rho_permuted = _permute_qubits(rho_data, [1, 0, 2])
+
+        # Check trace preserved
+        assert np.isclose(np.trace(rho_permuted), 1.0), "Trace should be 1"
+
+        # Check Hermiticity preserved
+        assert np.allclose(rho_permuted, rho_permuted.conj().T), "Should be Hermitian"
+
+        # Check positive semidefinite
+        eigenvalues = np.linalg.eigvalsh(rho_permuted)
+        assert np.all(eigenvalues >= -1e-10), "Should be positive semidefinite"
+
+    def test_npt_pure_ghz_distillable(self):
+        """Pure GHZ state should be distillable (NPT)."""
+        ghz = generate_entangled_state(3, 'ghz', noise_level=0.0)
+
+        is_distillable = check_npt_any_bipartition(ghz)
+
+        assert is_distillable, "Pure 3-qubit GHZ state should be distillable (NPT)"
+
+    def test_npt_pure_w_distillable(self):
+        """Pure W state should be distillable (NPT)."""
+        w_state = generate_entangled_state(3, 'w', noise_level=0.0)
+
+        is_distillable = check_npt_any_bipartition(w_state)
+
+        assert is_distillable, "Pure 3-qubit W state should be distillable (NPT)"
+
+    def test_npt_pure_cluster_distillable(self):
+        """Pure cluster state should be distillable (NPT)."""
+        cluster = generate_noisy_cluster_state(n_qubits=3, noise_level=0.0)
+
+        is_distillable = check_npt_any_bipartition(cluster)
+
+        assert is_distillable, "Pure 3-qubit cluster state should be distillable (NPT)"
+
+    def test_npt_product_state_not_distillable(self):
+        """Product states should NOT be distillable (PPT across all bipartitions)."""
+        for seed in [42, 123, 456]:
+            product = generate_3qubit_product_state(seed=seed)
+
+            is_distillable = check_npt_any_bipartition(product)
+
+            assert not is_distillable, f"Product state (seed={seed}) should NOT be distillable"
+
+    def test_npt_noisy_ghz_threshold(self):
+        """Noisy GHZ states should transition from distillable to non-distillable."""
+        distillable_count = 0
+        non_distillable_count = 0
+
+        # Test various noise levels
+        for noise in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
+            ghz = generate_entangled_state(3, 'ghz', noise_level=noise, seed=42)
+            if check_npt_any_bipartition(ghz):
+                distillable_count += 1
+            else:
+                non_distillable_count += 1
+
+        # Low noise should be distillable, high noise should not
+        assert distillable_count > 0, "Some low-noise GHZ states should be distillable"
+        assert non_distillable_count > 0, "Some high-noise GHZ states should NOT be distillable"
+
+    def test_cluster_state_valid_density_matrix(self):
+        """Cluster state should be a valid density matrix."""
+        for noise in [0.0, 0.2, 0.5]:
+            cluster = generate_noisy_cluster_state(n_qubits=3, noise_level=noise)
+
+            # Check dimension
+            assert cluster.dim == 8, f"3-qubit state should have dim 8, got {cluster.dim}"
+
+            # Check trace = 1
+            assert np.isclose(np.trace(cluster.data), 1.0), "Trace should be 1"
+
+            # Check Hermiticity
+            assert np.allclose(cluster.data, cluster.data.conj().T), "Should be Hermitian"
+
+            # Check positive semidefinite
+            eigenvalues = np.linalg.eigvalsh(cluster.data)
+            assert np.all(eigenvalues >= -1e-10), "Should be positive semidefinite"
+
+    def test_cluster_state_pure_when_no_noise(self):
+        """Cluster state without noise should be pure (rank 1)."""
+        cluster = generate_noisy_cluster_state(n_qubits=3, noise_level=0.0)
+
+        eigenvalues = np.linalg.eigvalsh(cluster.data)
+        rank = np.sum(eigenvalues > 1e-10)
+
+        assert rank == 1, f"Pure cluster state should have rank 1, got {rank}"
+
+    def test_product_state_valid_density_matrix(self):
+        """Product state should be a valid density matrix."""
+        for seed in [42, 123, 456]:
+            product = generate_3qubit_product_state(seed=seed)
+
+            # Check dimension
+            assert product.dim == 8, f"3-qubit state should have dim 8"
+
+            # Check trace = 1
+            assert np.isclose(np.trace(product.data), 1.0), "Trace should be 1"
+
+            # Check Hermiticity
+            assert np.allclose(product.data, product.data.conj().T), "Should be Hermitian"
+
+            # Check pure (rank 1)
+            eigenvalues = np.linalg.eigvalsh(product.data)
+            rank = np.sum(eigenvalues > 1e-10)
+            assert rank == 1, f"Product state should be pure (rank 1), got rank {rank}"
+
+    def test_distillability_dataset_sizes(self):
+        """Test distillability dataset generation produces correct sizes."""
+        n_samples = 100
+        states, labels = generate_distillability_dataset(n_samples=n_samples, seed=42)
+
+        assert len(states) == n_samples, f"Expected {n_samples} states, got {len(states)}"
+        assert len(labels) == n_samples, f"Expected {n_samples} labels, got {len(labels)}"
+
+        # Check all states are 3-qubit
+        for state in states:
+            assert state.dim == 8, "All states should be 3-qubit (dim=8)"
+
+    def test_distillability_dataset_label_balance(self):
+        """Test that dataset has reasonable class balance."""
+        n_samples = 200
+        states, labels = generate_distillability_dataset(
+            n_samples=n_samples,
+            noise_range=(0.0, 0.3),  # Lower noise → more distillable
+            seed=42
+        )
+
+        n_distillable = np.sum(labels)
+        n_non_distillable = len(labels) - n_distillable
+
+        # Should have both classes represented
+        assert n_distillable > 0, "Should have some distillable states"
+        assert n_non_distillable > 0, "Should have some non-distillable states"
+
+        # Product states (1/5 of dataset) are always non-distillable
+        assert n_non_distillable >= n_samples // 5, "At least product states should be non-distillable"
+
+    def test_distillability_dataset_reproducibility(self):
+        """Test that dataset generation is reproducible with same seed."""
+        states1, labels1 = generate_distillability_dataset(n_samples=50, seed=42)
+        states2, labels2 = generate_distillability_dataset(n_samples=50, seed=42)
+
+        # Labels should be identical
+        assert np.array_equal(labels1, labels2), "Same seed should produce same labels"
+
+        # States should be identical
+        for s1, s2 in zip(states1, states2):
+            assert np.allclose(s1.data, s2.data), "Same seed should produce same states"
 
 
 if __name__ == '__main__':
