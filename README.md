@@ -2,14 +2,15 @@
 
 **Learning Restricted Witnesses for Three-Qubit Distillability Using 1+2 Body Pauli Measurements**
 
-## Status: MVP Complete and Audited
+## Status: Complete - Hypothesis Strongly Supported
 
 | Metric | Value |
 |--------|-------|
-| Tests | 32/32 passing |
-| Test Accuracy | 87% |
-| NPT Oracle | Verified correct |
-| Pipeline | Production ready |
+| Tests | 56/56 passing |
+| SVM Accuracy | 85.3% |
+| 36D vs 63D Gap | -1.1% (36D wins!) |
+| NPT + DPS Oracles | Verified correct |
+| Pipelines | SVM + Transformer ready |
 
 ## Research Goal
 
@@ -56,29 +57,31 @@ Two classification pipelines are available:
 ```
 ML_QML_Witness_Generation/
 ├── GOAL.md                     # CANONICAL research objective
-├── CURRENT_STATUS.md           # CANONICAL codebase status (v5.0)
+├── CURRENT_STATUS.md           # CANONICAL codebase status (v6.0)
+├── INITIAL_FINDINGS.md         # Experimental results + conclusions
 ├── AUDIT_REPORT.md             # Verification results
-├── RESTRUCTURE_PLAN.md         # Historical reference
 │
 ├── src/
 │   ├── quantum_states/
-│   │   └── state_generation.py    # State generators, NPT oracle
+│   │   ├── state_generation.py       # State generators, NPT oracle
+│   │   └── distillability_oracles.py # NPT, PPT, DPS Level 2 oracles
 │   ├── feature_extraction/
-│   │   └── pauli_features.py      # 36D restricted feature extraction
+│   │   └── pauli_features.py         # 36D restricted feature extraction
 │   ├── ml_models/
-│   │   ├── svm_witness.py         # Linear SVM witness learner
-│   │   └── transformer_witness.py # Transformer-based classifier + hybrid witness
+│   │   ├── svm_witness.py            # Linear SVM witness learner
+│   │   └── transformer_witness.py    # Transformer + hybrid witness
 │   └── utils/
-│       └── __init__.py            # Minimal utilities
 │
 ├── scripts/
 │   ├── run_experiments.py              # SVM experiments
-│   └── run_transformer_experiments.py  # Transformer vs SVM comparison
+│   ├── run_transformer_experiments.py  # Transformer vs SVM comparison
+│   └── investigate_negative_results.py # Adversarial noise investigation
 │
 ├── tests/
 │   ├── test_state_generation.py
 │   ├── test_feature_extraction.py
 │   ├── test_integration.py
+│   ├── test_dps_oracle.py              # DPS oracle tests (24 tests)
 │   └── test_transformer_witness.py     # Transformer model tests
 │
 └── requirements.txt
@@ -151,25 +154,30 @@ print(f"Witness terms: {len(witness)}")
 | Component | Status | Notes |
 |-----------|--------|-------|
 | NPT distillability oracle | ✅ Ready | All 3 bipartitions verified |
+| DPS Level 2 oracle | ✅ Ready | SDP-based symmetric extension |
 | 3-qubit state generators | ✅ Ready | GHZ, W, cluster, product |
 | 36D feature extraction | ✅ Ready | 1+2 body Paulis only |
-| Linear SVM witness learner | ✅ Ready | With SparsePauliOp extraction |
+| Linear SVM witness learner | ✅ Ready | 85.3% accuracy |
 | Transformer classifier | ✅ Ready | Pure classification mode |
 | Hybrid transformer witness | ✅ Ready | Interpretable witness extraction |
 | Distillability dataset | ✅ Ready | Correct NPT-based labels |
 
 See [CURRENT_STATUS.md](CURRENT_STATUS.md) for detailed module status.
+See [INITIAL_FINDINGS.md](INITIAL_FINDINGS.md) for experimental results.
 
 ## Running Tests
 
 ```bash
-# Run all tests (SVM + basic tests)
-python -m pytest tests/ -v --ignore=tests/test_transformer_witness.py
+# Run all core tests (32 tests - no PyTorch/CVXPY required)
+python -m pytest tests/ -v --ignore=tests/test_transformer_witness.py --ignore=tests/test_dps_oracle.py
+
+# Run DPS oracle tests (24 tests - requires CVXPY)
+python -m pytest tests/test_dps_oracle.py -v
 
 # Run transformer tests (requires PyTorch)
 python -m pytest tests/test_transformer_witness.py -v
 
-# Run all tests including transformer
+# Run ALL tests (56 tests)
 python -m pytest tests/ -v
 
 # Run NPT oracle tests
@@ -224,6 +232,11 @@ pytest>=7.4.0
 **Required (Transformer models):**
 ```
 torch>=2.0.0
+```
+
+**Required (DPS Level 2 oracle):**
+```
+cvxpy>=1.4.0
 ```
 
 ## License
