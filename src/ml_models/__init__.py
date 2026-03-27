@@ -34,6 +34,20 @@ except ImportError:
     MLPClassifierLearner = None
     MLPDiscriminator = None
 
+# Conditionally import variational POVM (requires PyTorch)
+try:
+    from .variational_povm import (
+        VariationalPOVMLearner,
+        VariationalPOVMClassifier,
+        ParameterizedUnitary,
+    )
+    _POVM_AVAILABLE = True
+except ImportError:
+    _POVM_AVAILABLE = False
+    VariationalPOVMLearner = None
+    VariationalPOVMClassifier = None
+    ParameterizedUnitary = None
+
 __all__ = [
     'SVMWitnessLearner',
     # Witness utilities
@@ -59,4 +73,12 @@ if _MLP_AVAILABLE:
     __all__.extend([
         'MLPClassifierLearner',
         'MLPDiscriminator',
+    ])
+
+# Add POVM models to __all__ if available
+if _POVM_AVAILABLE:
+    __all__.extend([
+        'VariationalPOVMLearner',
+        'VariationalPOVMClassifier',
+        'ParameterizedUnitary',
     ])

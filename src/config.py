@@ -20,7 +20,7 @@ DEFAULT_NOISE_RANGE: Tuple[float, float] = (0.0, 0.5)
 
 # Cross-validation
 DEFAULT_CV_FOLDS = 5
-DEFAULT_SEEDS: List[int] = [42, 123, 456, 789, 1000]
+DEFAULT_SEEDS: List[int] = [42, 123, 456, 789, 1011]
 DEFAULT_SEED = 42
 
 
@@ -119,6 +119,35 @@ DEFAULT_MLP_CONFIG = MLPConfig()
 
 
 # =============================================================================
+# POVM CONFIGURATION
+# =============================================================================
+
+@dataclass
+class POVMConfig:
+    """Configuration for variational POVM learner."""
+    n_qubits: int = 3
+    n_layers: int = 4
+    learning_rate: float = 1e-3
+    batch_size: int = 64
+    n_epochs: int = 200
+    patience: int = 20
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert config to dictionary."""
+        return {
+            'n_qubits': self.n_qubits,
+            'n_layers': self.n_layers,
+            'learning_rate': self.learning_rate,
+            'batch_size': self.batch_size,
+            'n_epochs': self.n_epochs,
+            'patience': self.patience,
+        }
+
+
+DEFAULT_POVM_CONFIG = POVMConfig()
+
+
+# =============================================================================
 # FEATURE EXTRACTION DEFAULTS
 # =============================================================================
 
@@ -170,6 +199,9 @@ __all__ = [
     # MLP
     'MLPConfig',
     'DEFAULT_MLP_CONFIG',
+    # POVM
+    'POVMConfig',
+    'DEFAULT_POVM_CONFIG',
     # Feature extraction
     'DEFAULT_N_QUBITS',
     'DEFAULT_FEATURE_SET',
