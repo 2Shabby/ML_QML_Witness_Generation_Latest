@@ -414,6 +414,20 @@ https://docs.pennylane.ai/en/stable/introduction/measurements.html
 Example of a variational circuit returning an expectation value:
 https://docs.pennylane.ai/en/stable/introduction/operations.html
 
+## 9.5 LOCAL_IMPLEMENTATION_FEASIBILITY_CHECK
+
+**Status:** checkout-verified on 2026-08-17; environment validation only.
+
+An ignored Python 3.12 environment at `env/rocm` contains PyTorch 2.12.1 + ROCm 7.2 and PennyLane 0.45.1. On the Radeon RX 7800 XT (`gfx1101`), a standalone smoke check:
+
+1. supplied 36 values to `AmplitudeEmbedding` on six qubits,
+2. used zero padding and normalization,
+3. applied one `StronglyEntanglingLayers` block,
+4. returned a Pauli-Z expectation value, and
+5. backpropagated finite gradients through PennyLane's PyTorch interface on the ROCm device.
+
+This establishes that the proposed software path can execute locally. It does **not** implement the repository classifier, choose a justified ansatz, train on the distillability dataset, provide controlled baselines, or establish a QML result.
+
 ---
 
 # 10. IMPORTANT_METHOD_DISAMBIGUATION
@@ -527,16 +541,19 @@ How does performance change on real hardware or simulated correlated hardware no
 
 Ordered for information gain, not commitment.
 
-1. **Reproduce and freeze current classical results.**
-2. **Run L2-normalized classical control.**
-3. **Audit nonlinear 100% accuracy for leakage / shortcut learning.**
-4. **Repeat 36D-vs-63D ablation for nonlinear classical models.**
-5. **Implement 6-qubit amplitude-encoded variational quantum classifier.**
-6. **Compare QML against classical model using identically transformed input.**
-7. **Separately test direct density-matrix/state-input quantum classification in simulation.**
-8. **Expand near-PPT/NPT-boundary evaluation.**
-9. **Investigate connected-correlator / factorization-aware features.**
-10. **Investigate sparse measurement subsets and hardware validation.**
+Completed enabling work: the local ROCm/PennyLane environment and a differentiable six-qubit amplitude-embedding smoke check are verified. The following research and implementation work remains:
+
+1. **Restore a fully passing test suite and record portable environment constraints.**
+2. **Reproduce and freeze current classical results.**
+3. **Run raw, L2-normalized, and norm-preserving classical controls.**
+4. **Audit nonlinear 100% accuracy for leakage / shortcut learning.**
+5. **Repeat 36D-vs-63D ablation for nonlinear classical models.**
+6. **Implement 6-qubit amplitude-encoded variational quantum classifier.**
+7. **Compare QML against classical model using identically transformed input.**
+8. **Separately test direct density-matrix/state-input quantum classification in simulation.**
+9. **Expand near-PPT/NPT-boundary evaluation.**
+10. **Investigate connected-correlator / factorization-aware features.**
+11. **Investigate sparse measurement subsets and hardware validation.**
 
 ---
 

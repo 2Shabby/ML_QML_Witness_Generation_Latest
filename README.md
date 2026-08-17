@@ -87,7 +87,33 @@ CVXPY is presently commented out in `requirements.txt`. Install it separately be
 python -m pip install 'cvxpy>=1.4.0'
 ```
 
-PennyLane is not currently a project dependency because the proposed amplitude-encoded QML extension has not been implemented.
+PennyLane is not yet a declared project dependency because the proposed amplitude-encoded QML extension has not been implemented. Install it for QML development with:
+
+```bash
+python -m pip install 'pennylane>=0.45,<0.46'
+```
+
+### Verified local ROCm environment
+
+On the audited RX 7800 XT workstation, the ignored environment at `env/rocm` is already installed and can be activated with:
+
+```bash
+source env/rocm/bin/activate
+```
+
+It uses Python 3.12, PyTorch 2.12.1 + ROCm 7.2, PennyLane 0.45.1, and CVXPY 1.9.2. For a fresh compatible environment, install the ROCm Torch build before the general requirements so `requirements.txt` does not select the default CUDA build:
+
+```bash
+uv python install 3.12
+uv venv env/rocm --python 3.12
+env/rocm/bin/python -m ensurepip --upgrade
+env/rocm/bin/python -m pip install torch==2.12.1 \
+  --index-url https://download.pytorch.org/whl/rocm7.2
+env/rocm/bin/python -m pip install -r requirements.txt \
+  'cvxpy>=1.4.0' 'pennylane>=0.45,<0.46'
+```
+
+This ROCm command is machine-specific. A portable lock/constraints strategy and documented CPU fallback remain pending.
 
 ## Quick start
 
@@ -129,7 +155,7 @@ python -m pytest tests/test_variational_povm.py -q
 python -m pytest tests/test_dps_oracle.py -q
 ```
 
-The 118 tests were counted from source during the 2026-08-17 documentation consolidation, but they could not be executed in that environment because the project dependencies were unavailable.
+The verified ROCm environment currently reports 117 passed and one failed test. `TestMLPDiscriminator.test_single_sample` fails because `BatchNorm1d` receives one sample while the model is in training mode. Six warnings are also reported; see [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
 
 ## Experiments
 
@@ -165,12 +191,14 @@ New reported results should be stored in `results/` and entered in [EXPERIMENT_L
 
 ## Immediate research backlog
 
-1. Reproduce and freeze the classical baseline.
-2. Compare raw and L2-normalized classical features.
-3. Audit nonlinear models for leakage and state-family shortcuts.
-4. Repeat the 36D-vs-63D ablation for nonlinear models.
-5. Implement the six-qubit amplitude-encoded quantum classifier.
-6. Compare classical and quantum models using identical transformed inputs.
+1. Fix the single-sample MLP/BatchNorm failure and record portable environment constraints.
+2. Reproduce and freeze the classical baseline.
+3. Compare raw, L2-normalized, and norm-preserving classical controls.
+4. Audit nonlinear models for leakage and state-family shortcuts.
+5. Repeat the 36D-vs-63D ablation for nonlinear models.
+6. Implement the six-qubit amplitude-encoded quantum classifier.
+7. Compare classical and quantum models using identical transformed inputs.
+8. Evaluate the direct-state circuit proposal separately.
 
 ## License
 
