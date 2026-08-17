@@ -545,14 +545,16 @@ How does performance change on real hardware or simulated correlated hardware no
 
 Ordered for information gain, not commitment.
 
-Completed enabling work: the locked ROCm/PennyLane environment, reusable six-qubit amplitude-QML classifier, all three classical normalization controls, their identical-split comparison CLI, and the separate PennyLane direct-state classifier are verified. The following validation work remains:
+Completed work now includes the locked ROCm/PennyLane environment, both QML classifiers, all normalization controls, one unified provenance-preserving result pipeline, a 5,000-state classical validation, a 1,500-state boundary test, and a three-seed 1,000-state QML study.
 
-1. **Audit nonlinear 100% accuracy for leakage / shortcut learning.**
-2. **Repeat 36D-vs-63D ablation for nonlinear classical models.**
-3. **Expand near-PPT/NPT-boundary evaluation.**
-4. **Investigate connected-correlator / factorization-aware features.**
-5. **Investigate sparse measurement subsets and hardware validation.**
-6. **Run the controlled and direct-state QML experiments at report scale and freeze final baselines after implementation stabilizes.**
+The unified validation found that the standard dataset's 1,000 negative examples are all product states while all four other families are positive. A family-only classifier therefore reaches 100% accuracy, and all evaluated classical models fall to 47.4% on a balanced near-boundary set drawn only from noisy entangled families. The original near-perfect random-split nonlinear results must be treated as shortcut-confounded. L2 normalization also materially reduces MLP performance, while restoring the original norm restores 100% random-split accuracy; amplitude-QML performance is comparable to the normalized rather than raw classical control.
+
+The following scientific work remains:
+
+1. **Redesign the generator so negative labels are represented across multiple non-product families.**
+2. **Repeat the same unified random-split, family-held-out, boundary, ablation, and QML stages on that dataset.**
+3. **Investigate sparse measurement subsets and hardware validation only after the shortcut is removed.**
+4. **Freeze reviewed artifacts before using their values in a manuscript.**
 
 ---
 

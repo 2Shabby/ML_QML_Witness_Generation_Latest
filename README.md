@@ -119,7 +119,7 @@ print(witness)
 
 ## Tests
 
-The checkout contains 123 focused test functions across ten modules. Run them in the ROCm environment:
+The checkout contains 124 focused test functions across ten modules. Run them in the ROCm environment:
 
 ```bash
 python -m pytest -q
@@ -137,71 +137,29 @@ python -m pytest tests/test_direct_state_qml.py -q
 python -m pytest tests/test_dps_oracle.py -q
 ```
 
-The verified ROCm environment currently reports 123 passed and five warnings; see [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
+The verified ROCm environment currently reports 124 passed and five warnings; see [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
 
 ## Experiments
 
-Classical SVM suite:
+There is one authoritative result-generation command:
 
 ```bash
-python scripts/run_experiments.py --experiment all --n-samples 5000 --seed 42
+python scripts/run_manuscript_experiments.py --stage all
 ```
 
-Transformer suite:
+It writes `results/manuscript/results.json` as the complete provenance-rich artifact and `results/manuscript/metrics.csv` as a flat convenience view for later tables or analysis. The JSON retains dataset hashes, family/label counts, exact split indices, model configuration, paired ablations, boundary results, and environment versions. Neither artifact contains generated manuscript prose or LaTeX.
 
-```bash
-python scripts/run_transformer_experiments.py --experiment all --n-samples 5000 --seed 42
-```
-
-Additional suites:
-
-```bash
-python scripts/run_mlp_experiments.py
-python scripts/run_povm_experiments.py
-python scripts/run_noise_experiments.py
-python scripts/run_supplementary_classifiers.py
-python scripts/run_comparative_analysis.py --n-samples 5000 --seed 42 --save-plots
-```
-
-Amplitude-encoded QML:
-
-```bash
-python scripts/run_amplitude_qml_experiment.py \
-  --n-samples 5000 --seed 42 --n-epochs 50 \
-  --output results/amplitude_qml.json
-```
-
-Controlled normalization comparison on one shared split:
-
-```bash
-python scripts/run_controlled_qml_comparison.py \
-  --n-samples 5000 --seed 42 --mlp-epochs 100 --qml-epochs 50 \
-  --output results/controlled_qml_comparison.json
-```
-
-Direct density-matrix QML:
-
-```bash
-python scripts/run_direct_state_qml_experiment.py \
-  --n-samples 5000 --seed 42 --n-epochs 50 \
-  --output results/direct_state_qml.json
-```
-
-Plot saved result artifacts:
-
-```bash
-python scripts/plot_results.py --plot all --results-dir results --save
-```
-
-New reported results should be stored in `results/` and entered in [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md) with the commit, environment, seeds, split provenance, and artifact paths.
+For staged execution on the same deterministic configuration, use `--stage classical` or `--stage qml`. These are modes of the same schema and entry point, not separate experiment implementations.
 
 ## Immediate research backlog
 
 Completed implementation steps: amplitude QML, all three classical normalization controls, their identical-split comparison, and the separate direct-state PennyLane classifier.
 
-1. Audit nonlinear models for leakage and state-family shortcuts.
-2. Repeat the 36D-vs-63D ablation for nonlinear models.
-3. Run the controlled and direct-state experiments at report scale and freeze final baselines after implementation stabilizes.
+The initial unified run is complete. It identified a severe family-label shortcut in the standard synthetic dataset and a large effect from amplitude normalization. See [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md) for the qualified results.
+
+1. Review and commit the unified JSON/CSV baseline.
+2. Redesign the generator so negative labels span multiple families.
+3. Rerun the same pipeline before making robustness or quantum-advantage claims.
 
 ## License
 

@@ -319,3 +319,21 @@ class TestNPTOracleAndDistillability:
         # States should be identical
         for s1, s2 in zip(states1, states2):
             assert np.allclose(s1.data, s2.data), "Same seed should produce same states"
+
+    def test_distillability_dataset_metadata(self):
+        """Optional metadata should stay aligned with shuffled samples."""
+        states, labels, metadata = generate_distillability_dataset(
+            n_samples=25,
+            seed=42,
+            return_metadata=True,
+        )
+
+        assert len(states) == len(labels) == len(metadata) == 25
+        assert {item['family'] for item in metadata} == {
+            'ghz', 'w', 'cluster', 'random_mixed', 'product'
+        }
+        assert all(
+            label == 0
+            for label, item in zip(labels, metadata)
+            if item['family'] == 'product'
+        )

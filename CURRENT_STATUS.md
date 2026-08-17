@@ -30,7 +30,7 @@ The repository implements the original three-qubit classical pipeline, several n
 | Classical amplitude-encoding controls | Raw, L2-normalized, and normalized-plus-norm inputs implemented |
 | Identical-split QML/MLP comparison | Implemented and smoke-verified on ROCm |
 | PennyLane direct-state QML | Implemented and ROCm smoke-verified |
-| Frozen result artifacts | Absent; `results/` contains only `.gitkeep` |
+| Unified result artifacts | Generated under `results/manuscript/`; awaiting final review/commit |
 
 ## Active implementation plan
 
@@ -48,17 +48,17 @@ The existing PyTorch variational POVM and the new PennyLane direct-state classif
 
 The following statements were checked directly on 2026-08-17:
 
-- 42 Python files are present under the repository.
-- Ten test modules define 123 focused test functions.
+- 30 Python files are present under the repository.
+- Ten test modules define 124 focused test functions.
 - `python3 -m compileall -q src scripts tests` succeeds.
 - The ignored local environment `env/rocm` provides Python 3.12, PyTorch 2.12.1 + ROCm 7.2, PennyLane 0.45.1, CVXPY 1.9.2, and the declared project dependencies.
 - PyTorch detects the Radeon RX 7800 XT (`gfx1101`) through ROCm and successfully executes GPU tensor operations.
-- `env/rocm/bin/python -m pytest -q` reports 123 passed and five warnings.
+- `env/rocm/bin/python -m pytest -q` reports 124 passed and five warnings.
 - `MLPDiscriminator` uses standard batch-normalization behavior for ordinary batches and running statistics for a singleton training batch, preventing the former `BatchNorm1d` exception while retaining gradient flow.
 - The amplitude-QML learner completed batched optimizer steps and the CLI completed state generation, 36D extraction, training, prediction, split capture, and JSON serialization on ROCm. These are implementation checks, not research results.
 - The controlled-comparison CLI completed a deliberately undersized ROCm smoke run across the three MLP controls and amplitude QML using one shared split. Its metrics are not research evidence.
 - The direct-state CLI completed a deliberately undersized, one-epoch ROCm smoke run from generated density matrices through training and JSON serialization. Its metrics are not research evidence.
-- There are no committed experiment JSON files from which the manuscript metrics can be regenerated or independently inspected.
+- The unified JSON and CSV artifacts now contain exact dataset hashes, split indices, source hash, environment versions, and scalar metrics.
 
 Test counts by module:
 
@@ -71,12 +71,12 @@ Test counts by module:
 | `test_feature_extraction.py` | 7 |
 | `test_integration.py` | 4 |
 | `test_mlp_classifier.py` | 22 |
-| `test_state_generation.py` | 21 |
+| `test_state_generation.py` | 22 |
 | `test_transformer_witness.py` | 18 |
 | `test_variational_povm.py` | 19 |
-| **Total** | **123** |
+| **Total** | **124** |
 
-The current checkout result is 123/123 tests passing.
+The current checkout result is 124/124 tests passing.
 
 ## Implemented modules
 
@@ -135,38 +135,25 @@ The hybrid output is state-adaptive and should not be conflated with one fixed l
 
 `src/ml_models/qml_training.py` contains the shared split, optimization, inference, metrics, and persistence behavior used by both PennyLane classifiers.
 
-### Experiment scripts
+### Experiment pipeline
 
-| Script | Scope |
-|---|---|
-| `run_experiments.py` | SVM ablation, cross-validation, family, noise, and witness studies |
-| `run_mlp_experiments.py` | MLP baseline, family, and multi-seed studies |
-| `run_transformer_experiments.py` | Transformer comparison, scaling, family, ablation, and witness analysis |
-| `run_povm_experiments.py` | Variational POVM baseline, comparison, depth, and multi-seed studies |
-| `run_amplitude_qml_experiment.py` | Six-qubit amplitude-QML training and split-aware JSON output |
-| `run_controlled_qml_comparison.py` | Three MLP normalization controls and amplitude QML on one shared split |
-| `run_direct_state_qml_experiment.py` | PennyLane direct density-matrix classification as a separate experiment |
-| `run_noise_experiments.py` | Depolarizing, dephasing, and amplitude-damping sweeps |
-| `run_supplementary_classifiers.py` | Random-forest and gradient-boosting controls |
-| `run_comparative_analysis.py` | Combined model evaluation and plots |
-| `investigate_negative_results.py` | Adversarial noise and boundary investigations |
-| `plot_results.py` | Result visualization |
+`scripts/run_manuscript_experiments.py` is the sole result-generation entry point. Its classical stage records dataset leakage checks, family-only shortcuts, family-held-out evaluation, paired 36D-vs-63D nonlinear ablations, connected-correlator controls, and boundary generalization. Its QML stage evaluates the three normalization controls, amplitude QML, and direct-state QML on one split. It emits one detailed JSON artifact and one derived metrics CSV; it does not generate LaTeX.
 
 ## Known documentation and reproducibility gaps
 
-1. Reported manuscript metrics are not yet reproduced as committed machine-readable artifacts; this is deliberately deferred until the comparison implementation stabilizes.
+1. The unified artifacts are generated locally but are not yet committed as the reviewed baseline.
 2. Several historical values differ: SVM accuracy appears as 85.3%, 85.6%, and 86.3% for different analyses or summaries.
 3. Shared split indices and paired test predictions are emitted by the controlled comparison, but no report-scale split artifact has been frozen yet.
 4. CVXPY remains outside the general `requirements.txt`, but it is included in the machine-specific `requirements-rocm.lock` used by the audited environment.
-5. The near-perfect nonlinear results have not yet been documented with leakage and family-held-out controls.
-6. The controlled comparison is implementation-verified only; it has not been run at report scale or interpreted scientifically.
-7. The direct-state classifier is implementation-verified only and does not establish a practical mixed-state preparation protocol.
+5. The near-perfect nonlinear results are now shown to be confounded by family identity: every negative standard-dataset example is a product state.
+6. Classical boundary evaluation and three-seed QML comparison are complete, but broader generators with negatives in multiple families remain necessary.
+7. The direct-state classifier does not establish a practical mixed-state preparation protocol.
 
 ## Current research priorities
 
-1. Stress-test nonlinear performance under family-held-out and boundary-focused evaluation.
-2. Repeat the 36D-vs-63D comparison for nonlinear models.
-3. Complete step 5 only after the code stabilizes: run report-scale comparisons and freeze final artifacts.
+1. Scientifically review and commit the unified result artifacts.
+2. Redesign the dataset so negative labels occur in multiple state families, then repeat the same unified pipeline.
+3. Treat quantum-advantage and robust-classification claims as unsupported until that distribution-shift test succeeds.
 
 ## Status discipline
 

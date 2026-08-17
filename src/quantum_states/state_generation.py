@@ -385,8 +385,9 @@ def generate_3qubit_product_state(seed: Optional[int] = None) -> DensityMatrix:
 def generate_distillability_dataset(
     n_samples: int = 5000,
     noise_range: Tuple[float, float] = (0.0, 0.5),
-    seed: Optional[int] = None
-) -> Tuple[List[DensityMatrix], np.ndarray]:
+    seed: Optional[int] = None,
+    return_metadata: bool = False,
+):
     """
     Generate labeled dataset for 3-qubit distillability learning.
 
@@ -408,9 +409,10 @@ def generate_distillability_dataset(
         n_samples: Total number of states to generate
         noise_range: Range of noise levels (min, max) for noisy states
         seed: Random seed for reproducibility
+        return_metadata: Also return per-state family and noise provenance
 
     Returns:
-        Tuple of (states, labels) where:
+        Tuple of (states, labels), optionally followed by metadata, where:
             states: List of DensityMatrix objects (3-qubit)
             labels: numpy array of 0/1 labels (0=non-distillable, 1=distillable)
     """
@@ -419,6 +421,7 @@ def generate_distillability_dataset(
 
     states = []
     labels = []
+    metadata = []
 
     # Distribute samples across state families
     n_per_family = n_samples // 5
@@ -439,6 +442,7 @@ def generate_distillability_dataset(
         is_distillable = check_npt_any_bipartition(state)
         states.append(state)
         labels.append(1 if is_distillable else 0)
+        metadata.append({'family': 'ghz', 'noise': float(noise)})
     seed_offset += n_per_family
 
     # 2. Noisy W states
@@ -453,6 +457,7 @@ def generate_distillability_dataset(
         is_distillable = check_npt_any_bipartition(state)
         states.append(state)
         labels.append(1 if is_distillable else 0)
+        metadata.append({'family': 'w', 'noise': float(noise)})
     seed_offset += n_per_family
 
     # 3. Noisy cluster states
@@ -466,6 +471,7 @@ def generate_distillability_dataset(
         is_distillable = check_npt_any_bipartition(state)
         states.append(state)
         labels.append(1 if is_distillable else 0)
+        metadata.append({'family': 'cluster', 'noise': float(noise)})
     seed_offset += n_per_family
 
     # 4. Random mixed states
@@ -477,6 +483,7 @@ def generate_distillability_dataset(
         is_distillable = check_npt_any_bipartition(state)
         states.append(state)
         labels.append(1 if is_distillable else 0)
+        metadata.append({'family': 'random_mixed', 'noise': None})
     seed_offset += n_per_family
 
     # 5. Product states (guaranteed non-distillable)
@@ -487,16 +494,20 @@ def generate_distillability_dataset(
         # Product states are always PPT, hence non-distillable
         states.append(state)
         labels.append(0)
+        metadata.append({'family': 'product', 'noise': None})
 
     # Shuffle the dataset
     indices = np.random.permutation(len(states))
     states = [states[i] for i in indices]
     labels = np.array([labels[i] for i in indices])
+    metadata = [metadata[i] for i in indices]
 
     logger.info(f"Generated distillability dataset: {len(states)} states")
     logger.info(f"  Distillable: {np.sum(labels)} ({100*np.mean(labels):.1f}%)")
     logger.info(f"  Non-distillable: {len(labels) - np.sum(labels)} ({100*(1-np.mean(labels)):.1f}%)")
 
+    if return_metadata:
+        return states, labels, metadata
     return states, labels
 
 

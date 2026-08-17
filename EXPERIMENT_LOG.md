@@ -103,20 +103,21 @@ This was a point-in-time audit, not verification of the present checkout.
 
 **Status:** CHECKOUT-VERIFIED
 
-- 42 Python files are present.
-- Ten test modules contain 123 focused test functions: 5 amplitude QML, 3 controlled comparison, 3 direct-state QML, 21 DPS, 7 feature extraction, 4 integration, 22 MLP, 21 state generation, 18 transformer, and 19 variational POVM.
+- 30 Python files are present.
+- Ten test modules contain 124 focused test functions: 5 amplitude QML, 3 controlled comparison, 3 direct-state QML, 21 DPS, 7 feature extraction, 4 integration, 22 MLP, 22 state generation, 18 transformer, and 19 variational POVM.
 - `python3 -m compileall -q src scripts tests` succeeds.
 - `results/` contains only `.gitkeep`; no committed JSON result artifacts support the reported metrics.
 - An ignored local Python 3.12 environment was installed at `env/rocm` with PyTorch 2.12.1 + ROCm 7.2, PennyLane 0.45.1, CVXPY 1.9.2, and all declared project dependencies. `pip check` reports no broken requirements.
 - The Radeon RX 7800 XT (`gfx1101`) completed GPU tensor operations through PyTorch's ROCm backend.
-- `env/rocm/bin/python -m pytest -q` reports 123 passed and five warnings.
-- `src/ml_models/amplitude_qml.py`, `scripts/run_amplitude_qml_experiment.py`, and `tests/test_amplitude_qml.py` implement and verify the six-qubit amplitude-encoded classifier path.
+- `env/rocm/bin/python -m pytest -q` reports 124 passed and five warnings.
+- `src/ml_models/amplitude_qml.py` and `tests/test_amplitude_qml.py` implement and verify the six-qubit amplitude-encoded classifier path.
 - A standalone feasibility check successfully amplitude-embedded a 36-value GPU tensor into six qubits with zero padding and normalization, executed a `StronglyEntanglingLayers` circuit through PennyLane's PyTorch interface, and backpropagated finite gradients on the ROCm device. This is environment validation, not a trained-model result.
 - A small checkout smoke run verified batched optimization and the complete CLI pipeline on ROCm. Its deliberately undersized, one-epoch metrics are not recorded as experimental evidence.
 - `src/feature_extraction/preprocessing.py` implements raw, row-wise L2-normalized, and L2-normalized-plus-original-norm controls.
-- `scripts/run_controlled_qml_comparison.py` uses one stored stratified split for all three MLP controls and amplitude QML, and records aligned test labels and predictions. A 20-sample, one-epoch ROCm smoke run verified execution and serialization; its metrics are intentionally not recorded as evidence.
+- The unified pipeline uses one stored stratified split for all three MLP controls and amplitude QML. A 20-sample, one-epoch ROCm smoke run verified execution and serialization; its metrics are intentionally not recorded as evidence.
 - `src/ml_models/direct_state_qml.py` uses PennyLane to construct a trainable circuit unitary and applies it directly to batched three-qubit density matrices on ROCm. A 20-sample, one-epoch CLI smoke run verified generated-state conversion, training, splitting, and serialization; its metrics are intentionally not recorded as evidence.
 - `src/ml_models/qml_training.py` consolidates the shared learner behavior used by the amplitude and direct-state classifiers.
+- `scripts/run_manuscript_experiments.py` is the only result generator. Legacy generators, result consumers tied to their incompatible schemas, and hard-coded legacy TeX manuscripts were removed. The unified JSON and derived CSV are intended as inputs to later manuscript work; the pipeline does not generate LaTeX.
 - The implemented variational POVM is a PyTorch density-matrix classifier. It is distinct from the proposed six-qubit amplitude-encoded variational quantum classifier.
 
 ## Proposed next experiments
@@ -147,3 +148,30 @@ INTERPRETATION:
 LIMITATIONS:
 ARTIFACTS:
 ```
+
+## EXPERIMENT_2026_08_17_UNIFIED_VALIDATION
+
+**Status:** COMPLETE; manuscript-usable artifact generated, scientific caveats required.
+
+- **Code identity:** base commit `14aa6da91c7fe44b35a2eb0ae28fac88a99fe6aa`; exact dirty-tree Python source SHA-256 `6b60f0caead06f913a97f712fc1f0e38e45241ea12ad8637867e8c3671a0c23d`.
+- **Environment:** Python 3.12.13, NumPy 2.5.2, scikit-learn 1.9.0, PyTorch 2.12.1+rocm7.2, ROCm 7.2.53211, Radeon RX 7800 XT.
+- **Artifacts:** `results/manuscript/results.json` is authoritative; `results/manuscript/metrics.csv` is its flat scalar-metric view.
+- **Classical dataset:** 5,000 states, seed 42, exact state/label hash and split indices stored in JSON. Boundary evaluation used 1,500 separately generated noisy GHZ/W/cluster states.
+- **QML datasets:** 1,000 states for each of seeds 42, 123, and 456; each dataset hash and split is stored independently; maximum 20 epochs.
+
+### Central audit finding
+
+The standard generator produced 4,000 positive states and 1,000 negative states. Every negative state was a product state; GHZ, W, cluster, and random-mixed families were entirely positive. Consequently, a classifier using only the family identity achieved 100% random-split accuracy. There were no exact feature-row overlaps between train and test, so the main shortcut is family/label confounding rather than direct row duplication.
+
+The nonlinear random-split accuracies of 100% therefore do not establish general distillability recognition. On the separately generated near-boundary entangled-family set (789 negative, 711 positive), linear SVM, RBF SVM, random forest, and gradient boosting each achieved 47.4% accuracy, consistent with predicting only the positive class. Product-family-held-out training was not estimable because the remaining training set contained only positive labels.
+
+### Feature and QML results
+
+- Paired five-fold 36D-vs-63D mean accuracy: linear SVM 85.32% vs 84.20% (`p=0.148`); RBF SVM 100% vs 100%; random forest 100% vs 99.96%; gradient boosting 100% vs 100%. These random-fold results remain subject to the family shortcut.
+- Linear controls on one random split: local 9D 80.0%, restricted 36D 86.3%, connected 27D 83.8%, restricted-plus-connected 63D 85.4%, full Pauli 63D 83.6%.
+- Across three QML seeds, accuracy mean ± sample standard deviation: raw MLP 100.0% ± 0.0%; L2-normalized MLP 83.67% ± 1.04%; normalized-plus-original-norm MLP 100.0% ± 0.0%; amplitude QML 81.33% ± 2.31%; direct-state QML 80.67% ± 1.76%.
+- Corresponding balanced accuracy: raw MLP 100.0%, L2-normalized MLP 81.67%, normalized-plus-norm MLP 100.0%, amplitude QML 73.96%, direct-state QML 70.42%.
+
+### Interpretation limits
+
+These results support two defensible conclusions: the original synthetic random split has a severe family-label shortcut, and amplitude normalization discards predictive norm information. They do **not** support a quantum advantage claim or robust out-of-distribution distillability classification. Classical validation currently uses one dataset seed (with five fixed CV folds), QML uses three seeds, labels remain the implemented NPT proxy, and no hardware experiment was performed.
