@@ -103,26 +103,29 @@ This was a point-in-time audit, not verification of the present checkout.
 
 **Status:** CHECKOUT-VERIFIED
 
-- 38 Python files are present.
-- Nine test modules contain 120 focused test functions: 5 amplitude QML, 3 controlled comparison, 21 DPS, 7 feature extraction, 4 integration, 22 MLP, 21 state generation, 18 transformer, and 19 variational POVM.
+- 42 Python files are present.
+- Ten test modules contain 123 focused test functions: 5 amplitude QML, 3 controlled comparison, 3 direct-state QML, 21 DPS, 7 feature extraction, 4 integration, 22 MLP, 21 state generation, 18 transformer, and 19 variational POVM.
 - `python3 -m compileall -q src scripts tests` succeeds.
 - `results/` contains only `.gitkeep`; no committed JSON result artifacts support the reported metrics.
 - An ignored local Python 3.12 environment was installed at `env/rocm` with PyTorch 2.12.1 + ROCm 7.2, PennyLane 0.45.1, CVXPY 1.9.2, and all declared project dependencies. `pip check` reports no broken requirements.
 - The Radeon RX 7800 XT (`gfx1101`) completed GPU tensor operations through PyTorch's ROCm backend.
-- `env/rocm/bin/python -m pytest -q` reports 120 passed and five warnings.
+- `env/rocm/bin/python -m pytest -q` reports 123 passed and five warnings.
 - `src/ml_models/amplitude_qml.py`, `scripts/run_amplitude_qml_experiment.py`, and `tests/test_amplitude_qml.py` implement and verify the six-qubit amplitude-encoded classifier path.
 - A standalone feasibility check successfully amplitude-embedded a 36-value GPU tensor into six qubits with zero padding and normalization, executed a `StronglyEntanglingLayers` circuit through PennyLane's PyTorch interface, and backpropagated finite gradients on the ROCm device. This is environment validation, not a trained-model result.
 - A small checkout smoke run verified batched optimization and the complete CLI pipeline on ROCm. Its deliberately undersized, one-epoch metrics are not recorded as experimental evidence.
 - `src/feature_extraction/preprocessing.py` implements raw, row-wise L2-normalized, and L2-normalized-plus-original-norm controls.
 - `scripts/run_controlled_qml_comparison.py` uses one stored stratified split for all three MLP controls and amplitude QML, and records aligned test labels and predictions. A 20-sample, one-epoch ROCm smoke run verified execution and serialization; its metrics are intentionally not recorded as evidence.
+- `src/ml_models/direct_state_qml.py` uses PennyLane to construct a trainable circuit unitary and applies it directly to batched three-qubit density matrices on ROCm. A 20-sample, one-epoch CLI smoke run verified generated-state conversion, training, splitting, and serialization; its metrics are intentionally not recorded as evidence.
+- `src/ml_models/qml_training.py` consolidates the shared learner behavior used by the amplitude and direct-state classifiers.
 - The implemented variational POVM is a PyTorch density-matrix classifier. It is distinct from the proposed six-qubit amplitude-encoded variational quantum classifier.
 
 ## Proposed next experiments
 
-1. Treat direct density-matrix/state input as a separate operational experiment.
-2. Audit nonlinear results for leakage, family shortcuts, margin effects, and distribution shift.
-3. Repeat 36D-vs-63D ablations for nonlinear models.
-4. Run the controlled QML comparison at report scale and freeze final baselines only after the implementation stabilizes.
+Implementation steps 1–4 are complete: amplitude QML, its three classical normalization controls, one identical-split comparison pipeline, and the separate PennyLane direct-state classifier. The remaining work is validation:
+
+1. Audit nonlinear results for leakage, family shortcuts, margin effects, and distribution shift.
+2. Repeat 36D-vs-63D ablations for nonlinear models.
+3. Run the controlled and direct-state QML experiments at report scale and freeze final baselines only after the implementation stabilizes.
 
 ## Entry template
 

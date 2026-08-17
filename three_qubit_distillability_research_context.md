@@ -457,6 +457,10 @@ It potentially avoids the 36-observable feature-construction stage, but requires
 
 These two experiments should not be conflated.
 
+**Implementation status:** implemented and smoke-verified on ROCm. The classifier accepts three-qubit density matrices directly, uses PennyLane to construct a trainable `StronglyEntanglingLayers` unitary, applies it as `U rho U†`, and measures two Pauli-Z expectations. This is kept separate from the restricted 36-feature comparison and from the existing PyTorch variational POVM.
+
+PennyLane's `default.mixed` path was functionally correct but prohibitively slow for batched ROCm training in the installed version. The implemented simulator therefore uses PennyLane for the circuit/unitary definition and batched PyTorch density-matrix evolution on ROCm. This is an equivalent noiseless theoretical simulation, not a claim that arbitrary mixed-state preparation is experimentally easy.
+
 ---
 
 # 11. PROPOSED_CONTROL_EXPERIMENT_0
@@ -541,15 +545,14 @@ How does performance change on real hardware or simulated correlated hardware no
 
 Ordered for information gain, not commitment.
 
-Completed enabling work: the locked ROCm/PennyLane environment, reusable six-qubit amplitude-QML classifier, all three classical normalization controls, and their identical-split comparison CLI are verified. The following work remains:
+Completed enabling work: the locked ROCm/PennyLane environment, reusable six-qubit amplitude-QML classifier, all three classical normalization controls, their identical-split comparison CLI, and the separate PennyLane direct-state classifier are verified. The following validation work remains:
 
-1. **Separately test direct density-matrix/state-input quantum classification in simulation.**
-2. **Audit nonlinear 100% accuracy for leakage / shortcut learning.**
-3. **Repeat 36D-vs-63D ablation for nonlinear classical models.**
-4. **Expand near-PPT/NPT-boundary evaluation.**
-5. **Investigate connected-correlator / factorization-aware features.**
-6. **Investigate sparse measurement subsets and hardware validation.**
-7. **Run the controlled QML comparison at report scale and freeze final baselines after implementation stabilizes.**
+1. **Audit nonlinear 100% accuracy for leakage / shortcut learning.**
+2. **Repeat 36D-vs-63D ablation for nonlinear classical models.**
+3. **Expand near-PPT/NPT-boundary evaluation.**
+4. **Investigate connected-correlator / factorization-aware features.**
+5. **Investigate sparse measurement subsets and hardware validation.**
+6. **Run the controlled and direct-state QML experiments at report scale and freeze final baselines after implementation stabilizes.**
 
 ---
 

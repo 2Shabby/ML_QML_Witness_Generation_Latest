@@ -51,6 +51,18 @@ except ImportError:
     AmplitudeEncodedQMLClassifier = None
     AmplitudeQMLClassifierLearner = None
 
+# Conditionally import direct-state QML (requires PyTorch and PennyLane)
+try:
+    from .direct_state_qml import (
+        DirectStateQMLClassifier,
+        DirectStateQMLClassifierLearner,
+    )
+    _DIRECT_STATE_QML_AVAILABLE = True
+except ImportError:
+    _DIRECT_STATE_QML_AVAILABLE = False
+    DirectStateQMLClassifier = None
+    DirectStateQMLClassifierLearner = None
+
 __all__ = [
     'SVMWitnessLearner',
 ]
@@ -82,4 +94,10 @@ if _AMPLITUDE_QML_AVAILABLE:
     __all__.extend([
         'AmplitudeEncodedQMLClassifier',
         'AmplitudeQMLClassifierLearner',
+    ])
+
+if _DIRECT_STATE_QML_AVAILABLE:
+    __all__.extend([
+        'DirectStateQMLClassifier',
+        'DirectStateQMLClassifierLearner',
     ])

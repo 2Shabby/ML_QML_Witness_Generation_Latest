@@ -12,7 +12,7 @@ This document describes what exists in the current checkout. It intentionally se
 
 ## Summary
 
-The repository implements the original three-qubit classical pipeline, several nonlinear extensions, a reusable six-qubit amplitude-encoded QML classifier, and its controlled identical-split comparison against three MLP input variants. Final baseline reproduction is intentionally deferred until the implementation stabilizes.
+The repository implements the original three-qubit classical pipeline, several nonlinear extensions, a reusable six-qubit amplitude-encoded QML classifier with controlled classical comparisons, and a separate PennyLane direct-state classifier. Final report-scale validation and baseline reproduction remain deferred until the implementation stabilizes.
 
 | Area | Current state |
 |---|---|
@@ -29,21 +29,35 @@ The repository implements the original three-qubit classical pipeline, several n
 | PennyLane amplitude-encoded classifier | Implemented and ROCm-verified |
 | Classical amplitude-encoding controls | Raw, L2-normalized, and normalized-plus-norm inputs implemented |
 | Identical-split QML/MLP comparison | Implemented and smoke-verified on ROCm |
+| PennyLane direct-state QML | Implemented and ROCm smoke-verified |
 | Frozen result artifacts | Absent; `results/` contains only `.gitkeep` |
+
+## Active implementation plan
+
+| Step | Status | Scope |
+|---:|---|---|
+| 1 | Complete | Six-qubit amplitude-encoded QML classifier for the restricted 36D input |
+| 2 | Complete | Raw, L2-normalized, and L2-normalized-plus-original-norm MLP controls |
+| 3 | Complete | All four models evaluated through one reusable stratified split contract |
+| 4 | Complete | PennyLane circuit that accepts the three-qubit density matrix directly, kept separate from the restricted-measurement experiment |
+| 5 | Deferred | Report-scale runs, baseline reproduction, and frozen result/split artifacts after the implementation stabilizes |
+
+The existing PyTorch variational POVM and the new PennyLane direct-state classifier are separate implementations. The latter uses PennyLane to construct a trainable circuit unitary and applies it to batched density matrices on ROCm.
 
 ## Checkout verification
 
 The following statements were checked directly on 2026-08-17:
 
-- 38 Python files are present under the repository.
-- Nine test modules define 120 focused test functions.
+- 42 Python files are present under the repository.
+- Ten test modules define 123 focused test functions.
 - `python3 -m compileall -q src scripts tests` succeeds.
 - The ignored local environment `env/rocm` provides Python 3.12, PyTorch 2.12.1 + ROCm 7.2, PennyLane 0.45.1, CVXPY 1.9.2, and the declared project dependencies.
 - PyTorch detects the Radeon RX 7800 XT (`gfx1101`) through ROCm and successfully executes GPU tensor operations.
-- `env/rocm/bin/python -m pytest -q` reports 120 passed and five warnings.
+- `env/rocm/bin/python -m pytest -q` reports 123 passed and five warnings.
 - `MLPDiscriminator` uses standard batch-normalization behavior for ordinary batches and running statistics for a singleton training batch, preventing the former `BatchNorm1d` exception while retaining gradient flow.
 - The amplitude-QML learner completed batched optimizer steps and the CLI completed state generation, 36D extraction, training, prediction, split capture, and JSON serialization on ROCm. These are implementation checks, not research results.
 - The controlled-comparison CLI completed a deliberately undersized ROCm smoke run across the three MLP controls and amplitude QML using one shared split. Its metrics are not research evidence.
+- The direct-state CLI completed a deliberately undersized, one-epoch ROCm smoke run from generated density matrices through training and JSON serialization. Its metrics are not research evidence.
 - There are no committed experiment JSON files from which the manuscript metrics can be regenerated or independently inspected.
 
 Test counts by module:
@@ -52,6 +66,7 @@ Test counts by module:
 |---|---:|
 | `test_amplitude_qml.py` | 5 |
 | `test_controlled_comparison.py` | 3 |
+| `test_direct_state_qml.py` | 3 |
 | `test_dps_oracle.py` | 21 |
 | `test_feature_extraction.py` | 7 |
 | `test_integration.py` | 4 |
@@ -59,9 +74,9 @@ Test counts by module:
 | `test_state_generation.py` | 21 |
 | `test_transformer_witness.py` | 18 |
 | `test_variational_povm.py` | 19 |
-| **Total** | **120** |
+| **Total** | **123** |
 
-The current checkout result is 120/120 tests passing.
+The current checkout result is 123/123 tests passing.
 
 ## Implemented modules
 
@@ -75,6 +90,7 @@ The current checkout result is 120/120 tests passing.
 - MLP architecture and training.
 - Variational POVM architecture and training.
 - Six-qubit amplitude-QML architecture and training.
+- Three-qubit direct-state QML architecture and training.
 - Feature selection, witness sparsification, logging, and paths.
 
 ### State generation and labels
@@ -115,6 +131,10 @@ The hybrid output is state-adaptive and should not be conflated with one fixed l
 
 `src/ml_models/amplitude_qml.py` implements 36D-to-64D zero-padded amplitude embedding on six qubits, `StronglyEntanglingLayers`, two Pauli-Z output logits, batched training, early stopping, prediction, persistence, and explicit split capture. Zero-norm vectors are rejected because they cannot define an amplitude-encoded state.
 
+`src/ml_models/direct_state_qml.py` accepts batched three-qubit density matrices directly. PennyLane constructs the trainable `StronglyEntanglingLayers` unitary; PyTorch applies `U rho U†` on ROCm and evaluates two Pauli-Z logits. This avoids the 36-feature measurement stage but assumes the density matrix can be supplied in simulation.
+
+`src/ml_models/qml_training.py` contains the shared split, optimization, inference, metrics, and persistence behavior used by both PennyLane classifiers.
+
 ### Experiment scripts
 
 | Script | Scope |
@@ -125,6 +145,7 @@ The hybrid output is state-adaptive and should not be conflated with one fixed l
 | `run_povm_experiments.py` | Variational POVM baseline, comparison, depth, and multi-seed studies |
 | `run_amplitude_qml_experiment.py` | Six-qubit amplitude-QML training and split-aware JSON output |
 | `run_controlled_qml_comparison.py` | Three MLP normalization controls and amplitude QML on one shared split |
+| `run_direct_state_qml_experiment.py` | PennyLane direct density-matrix classification as a separate experiment |
 | `run_noise_experiments.py` | Depolarizing, dephasing, and amplitude-damping sweeps |
 | `run_supplementary_classifiers.py` | Random-forest and gradient-boosting controls |
 | `run_comparative_analysis.py` | Combined model evaluation and plots |
@@ -139,13 +160,13 @@ The hybrid output is state-adaptive and should not be conflated with one fixed l
 4. CVXPY remains outside the general `requirements.txt`, but it is included in the machine-specific `requirements-rocm.lock` used by the audited environment.
 5. The near-perfect nonlinear results have not yet been documented with leakage and family-held-out controls.
 6. The controlled comparison is implementation-verified only; it has not been run at report scale or interpreted scientifically.
+7. The direct-state classifier is implementation-verified only and does not establish a practical mixed-state preparation protocol.
 
 ## Current research priorities
 
-1. Implement the direct-state QML proposal as a separate operational experiment.
-2. Stress-test nonlinear performance under family-held-out and boundary-focused evaluation.
-3. Repeat the 36D-vs-63D comparison for nonlinear models.
-4. Run the controlled comparison at report scale and freeze final artifacts after the implementation stabilizes.
+1. Stress-test nonlinear performance under family-held-out and boundary-focused evaluation.
+2. Repeat the 36D-vs-63D comparison for nonlinear models.
+3. Complete step 5 only after the code stabilizes: run report-scale comparisons and freeze final artifacts.
 
 ## Status discipline
 

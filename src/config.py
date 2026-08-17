@@ -173,6 +173,31 @@ DEFAULT_AMPLITUDE_QML_CONFIG = AmplitudeQMLConfig()
 
 
 # =============================================================================
+# DIRECT-STATE QML CONFIGURATION
+# =============================================================================
+
+@dataclass
+class DirectStateQMLConfig:
+    """Configuration for direct three-qubit density-matrix classification."""
+    n_qubits: int = 3
+    n_layers: int = 2
+    learning_rate: float = 1e-2
+    batch_size: int = 16
+    n_epochs: int = 50
+    patience: int = 10
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert config to a dictionary."""
+        return {
+            field_name: getattr(self, field_name)
+            for field_name in self.__dataclass_fields__
+        }
+
+
+DEFAULT_DIRECT_STATE_QML_CONFIG = DirectStateQMLConfig()
+
+
+# =============================================================================
 # LOGGING CONFIGURATION
 # =============================================================================
 
@@ -212,6 +237,9 @@ __all__ = [
     # Amplitude-encoded QML
     'AmplitudeQMLConfig',
     'DEFAULT_AMPLITUDE_QML_CONFIG',
+    # Direct-state QML
+    'DirectStateQMLConfig',
+    'DEFAULT_DIRECT_STATE_QML_CONFIG',
     # Logging
     'DEFAULT_LOG_FORMAT',
     # Paths

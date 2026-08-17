@@ -2,7 +2,7 @@
 
 This repository studies whether three-qubit distillability can be classified from 36 experimentally accessible one- and two-body Pauli expectation values instead of full state tomography.
 
-The classical baseline and a controlled six-qubit amplitude-QML comparison are implemented. The active research direction is to validate these models rigorously and evaluate the separate direct-state circuit proposal.
+The classical baseline, controlled six-qubit amplitude-QML comparison, and separate PennyLane direct-state classifier are implemented. The active research direction is rigorous validation before report-scale reproduction.
 
 ## Research sources of truth
 
@@ -40,10 +40,11 @@ The 36 observables can be grouped into 12 measurement settings. The full density
 | MLP | 36D Pauli features | Nonlinear classical baseline |
 | Transformer | 36D Pauli features | Nonlinear standard and state-adaptive hybrid models |
 | Amplitude QML | 36D Pauli features | Six-qubit zero-padded amplitude-encoded classifier |
+| Direct-state QML | Three-qubit density matrix | PennyLane-defined trainable circuit applied directly to the state |
 | Variational POVM | Three-qubit density matrix | PyTorch simulation of a learned measurement |
 | Random forest / gradient boosting | 36D Pauli features | Supplementary nonlinear controls |
 
-The amplitude-QML and direct-state variational POVM models represent different operational questions and should not be conflated.
+The amplitude-QML and direct-state models represent different operational questions and should not be conflated. The PennyLane direct-state classifier and existing PyTorch variational POVM also use distinct implementations.
 
 ## Project layout
 
@@ -61,6 +62,8 @@ The amplitude-QML and direct-state variational POVM models represent different o
 │   ├── feature_extraction/preprocessing.py
 │   ├── ml_models/
 │   │   ├── amplitude_qml.py
+│   │   ├── direct_state_qml.py
+│   │   ├── qml_training.py
 │   │   ├── svm_witness.py
 │   │   ├── mlp_classifier.py
 │   │   ├── transformer_witness.py
@@ -116,7 +119,7 @@ print(witness)
 
 ## Tests
 
-The checkout contains 120 focused test functions across nine modules. Run them in the ROCm environment:
+The checkout contains 123 focused test functions across ten modules. Run them in the ROCm environment:
 
 ```bash
 python -m pytest -q
@@ -130,10 +133,11 @@ python -m pytest tests/test_mlp_classifier.py tests/test_transformer_witness.py 
 python -m pytest tests/test_variational_povm.py -q
 python -m pytest tests/test_amplitude_qml.py -q
 python -m pytest tests/test_controlled_comparison.py -q
+python -m pytest tests/test_direct_state_qml.py -q
 python -m pytest tests/test_dps_oracle.py -q
 ```
 
-The verified ROCm environment currently reports 120 passed and five warnings; see [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
+The verified ROCm environment currently reports 123 passed and five warnings; see [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
 
 ## Experiments
 
@@ -175,6 +179,14 @@ python scripts/run_controlled_qml_comparison.py \
   --output results/controlled_qml_comparison.json
 ```
 
+Direct density-matrix QML:
+
+```bash
+python scripts/run_direct_state_qml_experiment.py \
+  --n-samples 5000 --seed 42 --n-epochs 50 \
+  --output results/direct_state_qml.json
+```
+
 Plot saved result artifacts:
 
 ```bash
@@ -185,10 +197,11 @@ New reported results should be stored in `results/` and entered in [EXPERIMENT_L
 
 ## Immediate research backlog
 
-1. Evaluate the direct-state circuit proposal separately.
-2. Audit nonlinear models for leakage and state-family shortcuts.
-3. Repeat the 36D-vs-63D ablation for nonlinear models.
-4. Run the controlled comparison at report scale and freeze final baselines after implementation stabilizes.
+Completed implementation steps: amplitude QML, all three classical normalization controls, their identical-split comparison, and the separate direct-state PennyLane classifier.
+
+1. Audit nonlinear models for leakage and state-family shortcuts.
+2. Repeat the 36D-vs-63D ablation for nonlinear models.
+3. Run the controlled and direct-state experiments at report scale and freeze final baselines after implementation stabilizes.
 
 ## License
 
