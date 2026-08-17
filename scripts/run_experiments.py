@@ -98,7 +98,7 @@ def run_ablation_study(
     """
     Compare 36D restricted features vs 63D full features using 5-fold CV.
 
-    This is the key ablation study from GOAL.md: does restricting to 1+2 body
+    This is the key ablation study from the research context: does restricting to 1+2 body
     Paulis hurt performance compared to using all 63 Paulis?
 
     Args:

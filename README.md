@@ -1,256 +1,178 @@
-# 3-Qubit Distillability Witness Learning
+# Three-Qubit Distillability from Restricted Pauli Measurements
 
-**Learning Restricted Witnesses for Three-Qubit Distillability Using 1+2 Body Pauli Measurements**
+This repository studies whether three-qubit distillability can be classified from 36 experimentally accessible one- and two-body Pauli expectation values instead of full state tomography.
 
-## Status: Complete - Hypothesis Strongly Supported
+The classical baseline is implemented. The active research direction is to validate the reported nonlinear results and compare them fairly with quantum-classification approaches, including a proposed six-qubit amplitude-encoded variational classifier.
 
-| Metric | Value |
-|--------|-------|
-| Tests | 56/56 passing |
-| SVM Accuracy | 85.3% |
-| 36D vs 63D Gap | -1.1% (36D wins!) |
-| NPT + DPS Oracles | Verified correct |
-| Pipelines | SVM + Transformer ready |
+## Research sources of truth
 
-## Research Goal
+| Document | Purpose |
+|---|---|
+| [three_qubit_distillability_research_context.md](three_qubit_distillability_research_context.md) | Authoritative research question, manuscript context, QML proposals, limitations, and backlog |
+| [CURRENT_STATUS.md](CURRENT_STATUS.md) | Live implementation and verification status |
+| [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md) | Dated reported results, validation provenance, and reproduction status |
 
-This project investigates whether **distillability of 3-qubit QEC resource states** can be certified using only experimentally accessible measurements (1-body and 2-body Pauli operators), without requiring full state tomography or computationally expensive SDP methods.
+Reported metrics are not presented as newly reproduced results. The repository currently has no committed result JSON files; see the experiment log for evidence labels and exact qualifications.
 
-See [GOAL.md](GOAL.md) for the complete research objective.
+## Core experiment
 
-## Key Question
-
-> Does there exist a physically measurable, low-weight Hermitian operator W, expressible as a linear combination of one- and two-body Pauli operators, whose expectation value reliably distinguishes distillable three-qubit states from non-distillable ones?
-
-## Approach
-
-Two classification pipelines are available:
-
-**1. Linear SVM (Baseline)**
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐     ┌──────────────────┐
-│ 3-Qubit States  │ ──▶ │ 36D Features     │ ──▶ │ Linear SVM      │ ──▶ │ Witness Operator │
-│ (DensityMatrix) │     │ (1+2 body Pauli) │     │ Hyperplane w·x+b│     │ W = Σ wₖPₖ       │
-└─────────────────┘     └──────────────────┘     └─────────────────┘     └──────────────────┘
+```text
+three-qubit density matrix
+          |
+          +--> full-state NPT calculation --> training/evaluation label
+          |
+          +--> 36 one- and two-body Pauli expectations --> classifier
 ```
 
-**2. Transformer (Advanced)**
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐     ┌──────────────────┐
-│ 3-Qubit States  │ ──▶ │ 36D Features     │ ──▶ │ Transformer         │ ──▶ │ Classification   │
-│ (DensityMatrix) │     │ (1+2 body Pauli) │     │ (Classifier/Hybrid) │     │ + Witness (Hybrid)│
-└─────────────────┘     └──────────────────┘     └─────────────────────┘     └──────────────────┘
-```
+The classifier receives:
 
-- **Classifier Mode**: Pure transformer for classification (potentially captures non-linear boundaries)
-- **Hybrid Mode**: Constrained architecture that outputs interpretable witness coefficients
+- 9 single-qubit expectations: `X`, `Y`, and `Z` on each qubit.
+- 27 pairwise expectations: every `P_i Q_j` with `P,Q in {X,Y,Z}` and `i < j`.
+- No three-body Pauli terms in the restricted-input experiment.
 
-**Feature Space (36D):**
-- 9 single-qubit Paulis: X₁, Y₁, Z₁, X₂, Y₂, Z₂, X₃, Y₃, Z₃
-- 27 two-qubit correlators: X₁X₂, X₁Y₂, ..., Z₂Z₃
-- **Excluded:** 27 three-body terms (experimentally costly)
+The 36 observables can be grouped into 12 measurement settings. The full density matrix is used to generate NPT-based labels, not as input to the restricted classical classifiers.
 
-**Labeling:** NPT-based distillability oracle (separate from features)
+## Implemented models
 
-## Project Structure
+| Component | Input | Role |
+|---|---|---|
+| Linear SVM | 36D Pauli features | Interpretable fixed linear witness baseline |
+| MLP | 36D Pauli features | Nonlinear classical baseline |
+| Transformer | 36D Pauli features | Nonlinear standard and state-adaptive hybrid models |
+| Variational POVM | Three-qubit density matrix | PyTorch simulation of a learned measurement |
+| Random forest / gradient boosting | 36D Pauli features | Supplementary nonlinear controls |
 
-```
-ML_QML_Witness_Generation/
-├── GOAL.md                     # CANONICAL research objective
-├── CURRENT_STATUS.md           # CANONICAL codebase status (v7.0)
-├── INITIAL_FINDINGS.md         # Experimental results + conclusions
-├── AUDIT_REPORT.md             # Verification results
-│
+The variational POVM is not a PennyLane QML circuit and is not the proposed amplitude-encoded classifier.
+
+## Project layout
+
+```text
+.
+├── README.md
+├── CURRENT_STATUS.md
+├── EXPERIMENT_LOG.md
+├── three_qubit_distillability_research_context.md
+├── requirements.txt
 ├── src/
-│   ├── config.py                     # Centralized configuration (dataclasses)
-│   ├── quantum_states/
-│   │   ├── state_generation.py       # State generators, NPT oracle
-│   │   └── distillability_oracles.py # NPT, PPT, DPS Level 2 oracles
-│   ├── feature_extraction/
-│   │   └── pauli_features.py         # 36D restricted feature extraction
+│   ├── config.py
+│   ├── feature_extraction/pauli_features.py
 │   ├── ml_models/
-│   │   ├── svm_witness.py            # Linear SVM witness learner
-│   │   ├── transformer_witness.py    # Transformer + hybrid witness
-│   │   └── witness_utils.py          # Shared witness extraction utilities
-│   └── utils/
-│       └── __init__.py               # Logging, seeds, timing utilities
-│
+│   │   ├── svm_witness.py
+│   │   ├── mlp_classifier.py
+│   │   ├── transformer_witness.py
+│   │   ├── variational_povm.py
+│   │   └── witness_utils.py
+│   ├── quantum_states/
+│   │   ├── state_generation.py
+│   │   └── distillability_oracles.py
+│   └── utils/__init__.py
 ├── scripts/
-│   ├── run_experiments.py              # SVM experiments
-│   ├── run_transformer_experiments.py  # Transformer vs SVM comparison
-│   ├── plot_results.py                 # Visualization and plotting
-│   ├── run_comparative_analysis.py     # Model comparison analysis
-│   └── investigate_negative_results.py # Adversarial noise investigation
-│
 ├── tests/
-│   ├── test_state_generation.py
-│   ├── test_feature_extraction.py
-│   ├── test_integration.py
-│   ├── test_dps_oracle.py              # DPS oracle tests (24 tests)
-│   └── test_transformer_witness.py     # Transformer model tests
-│
-├── results/                    # Experiment results (JSON)
-├── figures/                    # Generated plots (PNG)
-└── requirements.txt
+└── results/
 ```
 
 ## Installation
 
+Create an isolated Python environment, then install the declared dependencies:
+
 ```bash
-# Clone repository
-git clone <repo-url>
-cd ML_QML_Witness_Generation
-
-# Install dependencies
-pip install qiskit scikit-learn numpy scipy pytest
-
-# Verify installation
-python -c "
-from src.quantum_states.state_generation import (
-    generate_entangled_state,
-    check_npt_any_bipartition
-)
-from src.feature_extraction.pauli_features import create_sparse_measurement_set
-from src.ml_models import SVMWitnessLearner
-
-ghz = generate_entangled_state(3, 'ghz', noise_level=0.1)
-basis = create_sparse_measurement_set(3, 'two_body')
-print(f'GHZ dimension: {ghz.dim}')       # Should be 8
-print(f'Restricted basis: {len(basis)}') # Should be 36
-print(f'GHZ distillable: {check_npt_any_bipartition(ghz)}')  # Should be True
-"
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-## Quick Start
+CVXPY is presently commented out in `requirements.txt`. Install it separately before running SDP-specific tests:
+
+```bash
+python -m pip install 'cvxpy>=1.4.0'
+```
+
+PennyLane is not currently a project dependency because the proposed amplitude-encoded QML extension has not been implemented.
+
+## Quick start
 
 ```python
-from src.quantum_states.state_generation import (
-    generate_entangled_state,
-    generate_distillability_dataset,
-    check_npt_any_bipartition
-)
 from src.feature_extraction.pauli_features import (
     create_sparse_measurement_set,
-    extract_features_batch
+    extract_features_batch,
 )
 from src.ml_models import SVMWitnessLearner
+from src.quantum_states.state_generation import generate_distillability_dataset
 
-# Generate 3-qubit distillability dataset
 states, labels = generate_distillability_dataset(n_samples=500, seed=42)
-print(f"Dataset: {len(states)} states, {sum(labels)} distillable")
-
-# Create 36D restricted basis (1+2 body only)
-basis = create_sparse_measurement_set(3, strategy='two_body')
-
-# Extract features
+basis = create_sparse_measurement_set(3, strategy="two_body")
 features = extract_features_batch(states, basis, verbose=False)
-print(f"Feature matrix: {features.shape}")  # (500, 36)
 
-# Train linear SVM witness
-learner = SVMWitnessLearner(pauli_basis=basis, C=1.0, kernel='linear')
+learner = SVMWitnessLearner(pauli_basis=basis, C=1.0, kernel="linear")
 metrics = learner.train(features, labels, test_size=0.2)
-print(f"Test accuracy: {metrics['test_accuracy']:.2%}")
-
-# Extract witness operator
 witness = learner.get_witness_operator()
-print(f"Witness terms: {len(witness)}")
+
+print(features.shape)  # (500, 36)
+print(metrics)
+print(witness)
 ```
 
-## Component Status
+## Tests
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| NPT distillability oracle | ✅ Ready | All 3 bipartitions verified |
-| DPS Level 2 oracle | ✅ Ready | SDP-based symmetric extension |
-| 3-qubit state generators | ✅ Ready | GHZ, W, cluster, product |
-| 36D feature extraction | ✅ Ready | 1+2 body Paulis only |
-| Linear SVM witness learner | ✅ Ready | 85.3% accuracy |
-| Transformer classifier | ✅ Ready | Pure classification mode |
-| Hybrid transformer witness | ✅ Ready | Interpretable witness extraction |
-| Distillability dataset | ✅ Ready | Correct NPT-based labels |
-
-See [CURRENT_STATUS.md](CURRENT_STATUS.md) for detailed module status.
-See [INITIAL_FINDINGS.md](INITIAL_FINDINGS.md) for experimental results.
-
-## Running Tests
+The checkout contains 118 test functions across seven modules. Run them in a fully installed environment:
 
 ```bash
-# Run all core tests (32 tests - no PyTorch/CVXPY required)
-python -m pytest tests/ -v --ignore=tests/test_transformer_witness.py --ignore=tests/test_dps_oracle.py
-
-# Run DPS oracle tests (24 tests - requires CVXPY)
-python -m pytest tests/test_dps_oracle.py -v
-
-# Run transformer tests (requires PyTorch)
-python -m pytest tests/test_transformer_witness.py -v
-
-# Run ALL tests (56 tests)
-python -m pytest tests/ -v
-
-# Run NPT oracle tests
-python -m pytest tests/test_state_generation.py::TestNPTOracleAndDistillability -v
-
-# Run integration pipeline test
-python -m pytest tests/test_integration.py::TestIntegration::test_3qubit_distillability_pipeline -v -s
+python -m pytest -q
 ```
 
-## Running Experiments
+Useful subsets:
 
 ```bash
-# SVM experiments (ablation, cross-validation, per-family, noise, witness)
-python scripts/run_experiments.py --experiment all --n-samples 5000
-python scripts/run_experiments.py --experiment ablation --n-samples 5000
-
-# Transformer vs SVM comparison
-python scripts/run_transformer_experiments.py --experiment comparison --n-samples 5000
-python scripts/run_transformer_experiments.py --experiment cv --n-samples 5000
-python scripts/run_transformer_experiments.py --experiment family --n-samples 2000
-python scripts/run_transformer_experiments.py --experiment ablation --n-samples 2000
-
-# Run all transformer experiments
-python scripts/run_transformer_experiments.py --experiment all --n-samples 5000
-
-# Generate plots from results
-python scripts/plot_results.py --plot all --save
-python scripts/plot_results.py --plot dashboard --save
-python scripts/plot_results.py --plot ablation
-python scripts/plot_results.py --plot family
-python scripts/plot_results.py --plot noise
-
-# Comparative analysis
-python scripts/run_comparative_analysis.py
+python -m pytest tests/test_state_generation.py tests/test_feature_extraction.py -q
+python -m pytest tests/test_mlp_classifier.py tests/test_transformer_witness.py -q
+python -m pytest tests/test_variational_povm.py -q
+python -m pytest tests/test_dps_oracle.py -q
 ```
 
-## Documents
+The 118 tests were counted from source during the 2026-08-17 documentation consolidation, but they could not be executed in that environment because the project dependencies were unavailable.
 
-| Document | Purpose |
-|----------|---------|
-| [GOAL.md](GOAL.md) | **CANONICAL** research objective |
-| [CURRENT_STATUS.md](CURRENT_STATUS.md) | **CANONICAL** codebase status |
-| [AUDIT_REPORT.md](AUDIT_REPORT.md) | Verification results |
-| [RESTRUCTURE_PLAN.md](RESTRUCTURE_PLAN.md) | Historical reference |
+## Experiments
 
-## Dependencies
+Classical SVM suite:
 
-**Required (Core):**
-```
-qiskit>=1.0.0
-scikit-learn>=1.3.0
-numpy>=1.24.0
-scipy>=1.11.0
-pytest>=7.4.0
+```bash
+python scripts/run_experiments.py --experiment all --n-samples 5000 --seed 42
 ```
 
-**Required (Transformer models):**
-```
-torch>=2.0.0
+Transformer suite:
+
+```bash
+python scripts/run_transformer_experiments.py --experiment all --n-samples 5000 --seed 42
 ```
 
-**Required (DPS Level 2 oracle):**
+Additional suites:
+
+```bash
+python scripts/run_mlp_experiments.py
+python scripts/run_povm_experiments.py
+python scripts/run_noise_experiments.py
+python scripts/run_supplementary_classifiers.py
+python scripts/run_comparative_analysis.py --n-samples 5000 --seed 42 --save-plots
 ```
-cvxpy>=1.4.0
+
+Plot saved result artifacts:
+
+```bash
+python scripts/plot_results.py --plot all --results-dir results --save
 ```
+
+New reported results should be stored in `results/` and entered in [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md) with the commit, environment, seeds, split provenance, and artifact paths.
+
+## Immediate research backlog
+
+1. Reproduce and freeze the classical baseline.
+2. Compare raw and L2-normalized classical features.
+3. Audit nonlinear models for leakage and state-family shortcuts.
+4. Repeat the 36D-vs-63D ablation for nonlinear models.
+5. Implement the six-qubit amplitude-encoded quantum classifier.
+6. Compare classical and quantum models using identical transformed inputs.
 
 ## License
 
-MIT License
+MIT License.

@@ -29,7 +29,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 
-# Hypothesis evaluation thresholds (from GOAL.md)
+# Legacy hypothesis evaluation thresholds retained for result analysis.
 HYPOTHESIS_THRESHOLDS = {
     'strong_support': {
         'min_accuracy_36d': 0.85,

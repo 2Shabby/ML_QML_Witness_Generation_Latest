@@ -229,11 +229,11 @@ class TestIntegration:
         """
         Test end-to-end 3-qubit distillability witness learning.
 
-        This is the core pipeline from GOAL.md:
+        This is the core pipeline from the consolidated research context:
         3-qubit states → 36D features → SVM → witness
         """
         logger.info("="*60)
-        logger.info("Testing 3-qubit distillability pipeline (GOAL.md)")
+        logger.info("Testing 3-qubit distillability pipeline (research context)")
         logger.info("="*60)
 
         # Parameters
