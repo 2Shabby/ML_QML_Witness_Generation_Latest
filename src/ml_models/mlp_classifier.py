@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 try:
     import torch
     import torch.nn as nn
+    import torch.nn.functional as F
     import torch.optim as optim
     from torch.utils.data import DataLoader, TensorDataset
     TORCH_AVAILABLE = True
@@ -24,12 +25,30 @@ except ImportError:
     TORCH_AVAILABLE = False
     torch = None
     nn = None
+    F = None
     optim = None
     DataLoader = None
     TensorDataset = None
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+
+class SingletonSafeBatchNorm1d(nn.BatchNorm1d if TORCH_AVAILABLE else object):
+    """Batch normalization that falls back to running statistics for singletons."""
+
+    def forward(self, x: 'torch.Tensor') -> 'torch.Tensor':
+        if self.training and x.shape[0] == 1:
+            return F.batch_norm(
+                x,
+                self.running_mean,
+                self.running_var,
+                self.weight,
+                self.bias,
+                training=False,
+                eps=self.eps,
+            )
+        return super().forward(x)
 
 
 class MLPDiscriminator(nn.Module if TORCH_AVAILABLE else object):
@@ -63,7 +82,7 @@ class MLPDiscriminator(nn.Module if TORCH_AVAILABLE else object):
         for dim in hidden_dims:
             layers.extend([
                 nn.Linear(prev_dim, dim),
-                nn.BatchNorm1d(dim),
+                SingletonSafeBatchNorm1d(dim),
                 nn.LeakyReLU(leaky_slope),
                 nn.Dropout(dropout),
             ])

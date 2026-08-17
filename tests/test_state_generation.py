@@ -2,7 +2,6 @@
 Unit tests for quantum state generation module.
 """
 
-import pytest
 import numpy as np
 from qiskit.quantum_info import DensityMatrix
 
@@ -320,7 +319,3 @@ class TestNPTOracleAndDistillability:
         # States should be identical
         for s1, s2 in zip(states1, states2):
             assert np.allclose(s1.data, s2.data), "Same seed should produce same states"
-
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])

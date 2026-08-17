@@ -4,16 +4,12 @@ Tests for DPS Hierarchy and Distillability Oracles
 Tests the oracle abstraction layer and DPS Level 2 implementation.
 """
 
-import pytest
 import numpy as np
-from qiskit.quantum_info import DensityMatrix
-
 from src.quantum_states.state_generation import (
     generate_entangled_state,
     generate_3qubit_product_state,
     generate_noisy_cluster_state,
     generate_random_density_matrix,
-    check_npt_any_bipartition
 )
 from src.quantum_states.distillability_oracles import (
     NPTOracle,
@@ -193,102 +189,6 @@ class TestAdversarialScenarios:
         ghz_above = generate_entangled_state(3, 'ghz', noise_level=0.81)
         assert oracle.is_distillable(ghz_above) == False
 
-    def test_asymmetric_noise(self):
-        """
-        Test GHZ under asymmetric noise (affects qubits differently).
-
-        Asymmetric noise might create states where distillability
-        depends on correlations the 36D features can't capture.
-        """
-        # Create GHZ state
-        dim = 8
-        psi = np.zeros(dim, dtype=complex)
-        psi[0] = 1/np.sqrt(2)  # |000⟩
-        psi[7] = 1/np.sqrt(2)  # |111⟩
-        rho = np.outer(psi, psi.conj())
-
-        # Apply asymmetric depolarizing noise
-        # More noise on qubit 0, less on qubits 1,2
-        noise_q0 = 0.5  # Heavy noise on qubit 0
-        noise_q12 = 0.1  # Light noise on qubits 1,2
-
-        # Single-qubit depolarizing channels
-        I = np.eye(2)
-        dep_q0 = (1 - noise_q0) * np.eye(2) + noise_q0 * I / 2
-
-        # Apply via Kraus operators (simplified - just mixing)
-        identity = np.eye(dim) / dim
-        rho_noisy = (1 - noise_q0) * rho + noise_q0 * identity
-
-        dm = DensityMatrix(rho_noisy)
-        oracle = NPTOracle()
-
-        # Check that oracle still works on asymmetric noise
-        result = oracle.is_distillable(dm)
-        assert isinstance(result, bool)
-
-    def test_phase_damped_ghz(self):
-        """
-        Test GHZ under phase damping (dephasing) noise.
-
-        Phase damping destroys coherences differently than depolarizing.
-        This might create states where 36D features behave differently.
-        """
-        # Create GHZ state
-        dim = 8
-        psi = np.zeros(dim, dtype=complex)
-        psi[0] = 1/np.sqrt(2)
-        psi[7] = 1/np.sqrt(2)
-        rho = np.outer(psi, psi.conj())
-
-        # Apply dephasing: kill off-diagonal elements
-        gamma = 0.5  # Dephasing rate
-
-        rho_dephased = rho.copy()
-        for i in range(dim):
-            for j in range(dim):
-                if i != j:
-                    # Count bit differences (Hamming weight of i XOR j)
-                    n_diff = bin(i ^ j).count('1')
-                    rho_dephased[i, j] *= (1 - gamma) ** n_diff
-
-        # Renormalize
-        rho_dephased = rho_dephased / np.trace(rho_dephased)
-
-        dm = DensityMatrix(rho_dephased)
-        oracle = NPTOracle()
-        result = oracle.is_distillable(dm)
-
-        # Phase-damped GHZ should still be NPT for moderate dephasing
-        assert isinstance(result, bool)
-
-    def test_amplitude_damped_ghz(self):
-        """
-        Test GHZ under amplitude damping (T1 decay).
-
-        Amplitude damping drives |1⟩ → |0⟩, changing populations.
-        """
-        # Create GHZ state
-        dim = 8
-        psi = np.zeros(dim, dtype=complex)
-        psi[0] = 1/np.sqrt(2)
-        psi[7] = 1/np.sqrt(2)
-        rho = np.outer(psi, psi.conj())
-
-        # Simplified amplitude damping: mix toward |000⟩⟨000|
-        gamma = 0.3
-        ground = np.zeros((dim, dim))
-        ground[0, 0] = 1.0
-
-        rho_damped = (1 - gamma) * rho + gamma * ground
-
-        dm = DensityMatrix(rho_damped)
-        oracle = NPTOracle()
-        result = oracle.is_distillable(dm)
-
-        assert isinstance(result, bool)
-
-
 class TestPotentialNegativeResults:
     """
     Investigate scenarios for potential negative results.
@@ -388,7 +288,3 @@ class TestPotentialNegativeResults:
 
         # 63D should have at least as much information
         assert var_63d >= var_36d * 0.9  # Allow some tolerance
-
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])

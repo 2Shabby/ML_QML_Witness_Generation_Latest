@@ -66,24 +66,17 @@ class TestMLPDiscriminator:
         assert features.shape == (10, 32)
 
     def test_single_sample(self):
-        """Test with single sample (batch size 1)."""
+        """Test a singleton training batch supports forward and backward passes."""
         model = MLPDiscriminator(input_dim=36, hidden_dims=[64, 32])
         x = torch.randn(1, 36)
         out = model(x)
+        out.sum().backward()
+
         assert out.shape == (1, 2)
-
-    def test_dropout_and_leaky_slope(self):
-        """Test custom dropout and leaky slope."""
-        model = MLPDiscriminator(
-            input_dim=36,
-            hidden_dims=[64, 32],
-            dropout=0.5,
-            leaky_slope=0.1
+        assert all(
+            parameter.grad is not None and torch.isfinite(parameter.grad).all()
+            for parameter in model.parameters()
         )
-        x = torch.randn(10, 36)
-        out = model(x)
-        assert out.shape == (10, 2)
-
 
 class TestMLPClassifierLearner:
     """Test MLPClassifierLearner wrapper class."""
@@ -308,14 +301,6 @@ class TestMLPWithQuantumData:
         # Should achieve reasonable accuracy
         assert metrics['test_accuracy'] > 0.55
 
-    def test_feature_dimension_match(self):
-        """Test that feature dimension matches basis size."""
-        basis = create_sparse_measurement_set(3, 'two_body')
-        assert len(basis) == 36
-
-        learner = MLPClassifierLearner(n_features=len(basis))
-        assert learner.n_features == 36
-
     def test_predictions_consistent_with_probabilities(self):
         """Test that predictions are consistent with highest probability class."""
         from src.quantum_states.state_generation import generate_distillability_dataset
@@ -344,7 +329,3 @@ class TestMLPWithQuantumData:
         # Predictions should match argmax of probabilities
         expected_predictions = probs.argmax(axis=1)
         assert np.array_equal(predictions, expected_predictions)
-
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])

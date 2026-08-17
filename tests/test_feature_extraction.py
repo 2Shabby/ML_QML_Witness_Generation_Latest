@@ -2,9 +2,8 @@
 Unit tests for feature extraction module.
 """
 
-import pytest
 import numpy as np
-from qiskit.quantum_info import DensityMatrix, PauliList
+from qiskit.quantum_info import PauliList
 
 from src.quantum_states.state_generation import generate_bell_state, generate_separable_state
 from src.feature_extraction.pauli_features import (
@@ -140,7 +139,3 @@ class TestFeatureExtraction:
 
         # Both should have same dimension
         assert len(features_sep) == len(features_bell)
-
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])

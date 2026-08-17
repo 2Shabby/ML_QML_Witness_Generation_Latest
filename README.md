@@ -53,6 +53,7 @@ The variational POVM is not a PennyLane QML circuit and is not the proposed ampl
 ├── EXPERIMENT_LOG.md
 ├── three_qubit_distillability_research_context.md
 ├── requirements.txt
+├── requirements-rocm.lock
 ├── src/
 │   ├── config.py
 │   ├── feature_extraction/pauli_features.py
@@ -101,19 +102,14 @@ On the audited RX 7800 XT workstation, the ignored environment at `env/rocm` is 
 source env/rocm/bin/activate
 ```
 
-It uses Python 3.12, PyTorch 2.12.1 + ROCm 7.2, PennyLane 0.45.1, and CVXPY 1.9.2. For a fresh compatible environment, install the ROCm Torch build before the general requirements so `requirements.txt` does not select the default CUDA build:
+It uses Python 3.12, PyTorch 2.12.1 + ROCm 7.2, PennyLane 0.45.1, and CVXPY 1.9.2. This is the only supported environment for the current project. Recreate it from the machine-specific lock with:
 
 ```bash
 uv python install 3.12
 uv venv env/rocm --python 3.12
 env/rocm/bin/python -m ensurepip --upgrade
-env/rocm/bin/python -m pip install torch==2.12.1 \
-  --index-url https://download.pytorch.org/whl/rocm7.2
-env/rocm/bin/python -m pip install -r requirements.txt \
-  'cvxpy>=1.4.0' 'pennylane>=0.45,<0.46'
+env/rocm/bin/python -m pip install -r requirements-rocm.lock
 ```
-
-This ROCm command is machine-specific. A portable lock/constraints strategy and documented CPU fallback remain pending.
 
 ## Quick start
 
@@ -140,7 +136,7 @@ print(witness)
 
 ## Tests
 
-The checkout contains 118 test functions across seven modules. Run them in a fully installed environment:
+The checkout contains 112 focused test functions across seven modules. Run them in the ROCm environment:
 
 ```bash
 python -m pytest -q
@@ -155,7 +151,7 @@ python -m pytest tests/test_variational_povm.py -q
 python -m pytest tests/test_dps_oracle.py -q
 ```
 
-The verified ROCm environment currently reports 117 passed and one failed test. `TestMLPDiscriminator.test_single_sample` fails because `BatchNorm1d` receives one sample while the model is in training mode. Six warnings are also reported; see [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
+The verified ROCm environment currently reports 112 passed and five warnings. The MLP handles singleton training batches by using existing batch-normalization running statistics for that case; see [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
 
 ## Experiments
 
@@ -191,14 +187,13 @@ New reported results should be stored in `results/` and entered in [EXPERIMENT_L
 
 ## Immediate research backlog
 
-1. Fix the single-sample MLP/BatchNorm failure and record portable environment constraints.
-2. Reproduce and freeze the classical baseline.
-3. Compare raw, L2-normalized, and norm-preserving classical controls.
-4. Audit nonlinear models for leakage and state-family shortcuts.
-5. Repeat the 36D-vs-63D ablation for nonlinear models.
-6. Implement the six-qubit amplitude-encoded quantum classifier.
-7. Compare classical and quantum models using identical transformed inputs.
-8. Evaluate the direct-state circuit proposal separately.
+1. Reproduce and freeze the classical baseline.
+2. Compare raw, L2-normalized, and norm-preserving classical controls.
+3. Audit nonlinear models for leakage and state-family shortcuts.
+4. Repeat the 36D-vs-63D ablation for nonlinear models.
+5. Implement the six-qubit amplitude-encoded quantum classifier.
+6. Compare classical and quantum models using identical transformed inputs.
+7. Evaluate the direct-state circuit proposal separately.
 
 ## License
 

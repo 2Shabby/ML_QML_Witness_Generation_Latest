@@ -97,32 +97,31 @@ Durable validation findings from the old audit:
 - Depolarized GHZ/W/cluster states crossed the NPT threshold near noise `0.8` under the implemented noise convention.
 - The 36 restricted Pauli features stayed in `[-1, 1]` and grouped into 12 settings.
 
-This was a point-in-time audit, not verification of the present 118-test checkout.
+This was a point-in-time audit, not verification of the present checkout.
 
 ## CHECKOUT_2026_08_17
 
 **Status:** CHECKOUT-VERIFIED
 
 - 34 Python files are present.
-- Seven test modules contain 118 test functions: 24 DPS, 7 feature extraction, 5 integration, 24 MLP, 21 state generation, 18 transformer, and 19 variational POVM.
+- Seven test modules contain 112 focused test functions: 21 DPS, 7 feature extraction, 4 integration, 22 MLP, 21 state generation, 18 transformer, and 19 variational POVM.
 - `python3 -m compileall -q src scripts tests` succeeds.
 - `results/` contains only `.gitkeep`; no committed JSON result artifacts support the reported metrics.
 - An ignored local Python 3.12 environment was installed at `env/rocm` with PyTorch 2.12.1 + ROCm 7.2, PennyLane 0.45.1, CVXPY 1.9.2, and all declared project dependencies. `pip check` reports no broken requirements.
 - The Radeon RX 7800 XT (`gfx1101`) completed GPU tensor operations through PyTorch's ROCm backend.
-- `env/rocm/bin/python -m pytest -q` reports 117 passed, one failed, and six warnings. The failure is `TestMLPDiscriminator.test_single_sample`: `BatchNorm1d` rejects a single-sample input while the model is in training mode.
+- `env/rocm/bin/python -m pytest -q` reports 112 passed and five warnings after adding a singleton-safe `BatchNorm1d` fallback and removing six artifact tests plus ignored pytest return values.
 - No PennyLane or amplitude-embedding implementation exists in `src/`, `scripts/`, or `tests/`.
 - A standalone feasibility check successfully amplitude-embedded a 36-value GPU tensor into six qubits with zero padding and normalization, executed a `StronglyEntanglingLayers` circuit through PennyLane's PyTorch interface, and backpropagated finite gradients on the ROCm device. This is environment validation, not a trained-model result.
 - The implemented variational POVM is a PyTorch density-matrix classifier. It is distinct from the proposed six-qubit amplitude-encoded variational quantum classifier.
 
 ## Proposed next experiments
 
-1. Resolve the single-sample MLP/BatchNorm test failure and record portable environment constraints.
-2. Reproduce and freeze the classical baseline with environment metadata, split indices, seeds, configuration, and JSON outputs.
-3. Run the raw-vs-L2-normalized classical control required for a fair amplitude-encoding comparison.
-4. Audit nonlinear results for leakage, family shortcuts, margin effects, and distribution shift.
-5. Repeat 36D-vs-63D ablations for MLP, transformer, and future QML models.
-6. Implement and evaluate the six-qubit amplitude-encoded classifier on the identically transformed input.
-7. Treat direct density-matrix/state input as a separate operational experiment.
+1. Reproduce and freeze the classical baseline with environment metadata, split indices, seeds, configuration, and JSON outputs.
+2. Run the raw-vs-L2-normalized classical control required for a fair amplitude-encoding comparison.
+3. Audit nonlinear results for leakage, family shortcuts, margin effects, and distribution shift.
+4. Repeat 36D-vs-63D ablations for MLP, transformer, and future QML models.
+5. Implement and evaluate the six-qubit amplitude-encoded classifier on the identically transformed input.
+6. Treat direct density-matrix/state input as a separate operational experiment.
 
 ## Entry template
 

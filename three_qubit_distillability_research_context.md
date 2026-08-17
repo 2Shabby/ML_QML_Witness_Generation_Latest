@@ -541,19 +541,18 @@ How does performance change on real hardware or simulated correlated hardware no
 
 Ordered for information gain, not commitment.
 
-Completed enabling work: the local ROCm/PennyLane environment and a differentiable six-qubit amplitude-embedding smoke check are verified. The following research and implementation work remains:
+Completed enabling work: the locked local ROCm/PennyLane environment, a differentiable six-qubit amplitude-embedding smoke check, and the focused 112-test suite are verified. The following research and implementation work remains:
 
-1. **Restore a fully passing test suite and record portable environment constraints.**
-2. **Reproduce and freeze current classical results.**
-3. **Run raw, L2-normalized, and norm-preserving classical controls.**
-4. **Audit nonlinear 100% accuracy for leakage / shortcut learning.**
-5. **Repeat 36D-vs-63D ablation for nonlinear classical models.**
-6. **Implement 6-qubit amplitude-encoded variational quantum classifier.**
-7. **Compare QML against classical model using identically transformed input.**
-8. **Separately test direct density-matrix/state-input quantum classification in simulation.**
-9. **Expand near-PPT/NPT-boundary evaluation.**
-10. **Investigate connected-correlator / factorization-aware features.**
-11. **Investigate sparse measurement subsets and hardware validation.**
+1. **Reproduce and freeze current classical results.**
+2. **Run raw, L2-normalized, and norm-preserving classical controls.**
+3. **Audit nonlinear 100% accuracy for leakage / shortcut learning.**
+4. **Repeat 36D-vs-63D ablation for nonlinear classical models.**
+5. **Implement 6-qubit amplitude-encoded variational quantum classifier.**
+6. **Compare QML against classical model using identically transformed input.**
+7. **Separately test direct density-matrix/state-input quantum classification in simulation.**
+8. **Expand near-PPT/NPT-boundary evaluation.**
+9. **Investigate connected-correlator / factorization-aware features.**
+10. **Investigate sparse measurement subsets and hardware validation.**
 
 ---
 

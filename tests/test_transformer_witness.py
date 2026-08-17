@@ -421,7 +421,3 @@ class TestTransformerIntegration:
         # (might be worse due to small dataset, but shouldn't be dramatically worse)
         accuracy_gap = svm_metrics['test_accuracy'] - tf_metrics['test_accuracy']
         assert accuracy_gap < 0.2, f"Transformer too far below SVM: gap={accuracy_gap:.4f}"
-
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])

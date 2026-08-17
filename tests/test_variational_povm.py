@@ -325,7 +325,3 @@ class TestPOVMIntegration:
         # POVM should be valid
         verification = learner.verify_povm()
         assert verification['is_valid']
-
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
