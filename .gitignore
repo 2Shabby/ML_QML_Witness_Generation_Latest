@@ -44,6 +44,8 @@ htmlcov/
 Thumbs.db
 
 # Project specific
+# Dataset audit: commit the JSON report (reproducibility evidence), ignore figures
+results/dataset_audit/*.png
 logs/
 checkpoints/
 outputs/

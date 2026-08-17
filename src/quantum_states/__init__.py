@@ -14,6 +14,12 @@ from .state_generation import (
     partial_transpose
 )
 
+from .balanced_dataset import (
+    generate_balanced_distillability_dataset,
+    min_pt_eigenvalue,
+    find_boundary_q,
+)
+
 from .distillability_oracles import (
     DistillabilityOracle,
     NPTOracle,
@@ -30,6 +36,9 @@ __all__ = [
     'generate_werner_state',
     'generate_dataset',
     'generate_distillability_dataset',
+    'generate_balanced_distillability_dataset',
+    'min_pt_eigenvalue',
+    'find_boundary_q',
     'generate_noisy_cluster_state',
     'generate_3qubit_product_state',
     # NPT functions
