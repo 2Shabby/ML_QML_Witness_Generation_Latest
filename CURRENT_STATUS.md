@@ -12,7 +12,7 @@ This document describes what exists in the current checkout. It intentionally se
 
 ## Summary
 
-The repository implements the original three-qubit classical pipeline and several nonlinear extensions. A local ROCm/PennyLane environment and a differentiable amplitude-embedding feasibility check are now verified. The next research phase described in the consolidated context—a reusable, controlled amplitude-encoded QML classifier and experiment—is not yet implemented.
+The repository implements the original three-qubit classical pipeline, several nonlinear extensions, a reusable six-qubit amplitude-encoded QML classifier, and its controlled identical-split comparison against three MLP input variants. Final baseline reproduction is intentionally deferred until the implementation stabilizes.
 
 | Area | Current state |
 |---|---|
@@ -26,29 +26,32 @@ The repository implements the original three-qubit classical pipeline and severa
 | Noise and supplementary classifier scripts | Implemented |
 | DPS separability helper | Implemented, with important limitations below |
 | Local Python 3.12 / ROCm research environment | Installed and GPU-verified |
-| PennyLane amplitude-embedding feasibility spike | Verified on ROCm; not repository code |
-| PennyLane amplitude-encoded classifier | Not implemented |
-| L2-normalized classical control | Not implemented as a documented experiment |
+| PennyLane amplitude-encoded classifier | Implemented and ROCm-verified |
+| Classical amplitude-encoding controls | Raw, L2-normalized, and normalized-plus-norm inputs implemented |
+| Identical-split QML/MLP comparison | Implemented and smoke-verified on ROCm |
 | Frozen result artifacts | Absent; `results/` contains only `.gitkeep` |
 
 ## Checkout verification
 
 The following statements were checked directly on 2026-08-17:
 
-- 34 Python files are present under the repository.
-- Seven test modules define 112 focused test functions.
+- 38 Python files are present under the repository.
+- Nine test modules define 120 focused test functions.
 - `python3 -m compileall -q src scripts tests` succeeds.
 - The ignored local environment `env/rocm` provides Python 3.12, PyTorch 2.12.1 + ROCm 7.2, PennyLane 0.45.1, CVXPY 1.9.2, and the declared project dependencies.
 - PyTorch detects the Radeon RX 7800 XT (`gfx1101`) through ROCm and successfully executes GPU tensor operations.
-- `env/rocm/bin/python -m pytest -q` reports 112 passed and five warnings.
+- `env/rocm/bin/python -m pytest -q` reports 120 passed and five warnings.
 - `MLPDiscriminator` uses standard batch-normalization behavior for ordinary batches and running statistics for a singleton training batch, preventing the former `BatchNorm1d` exception while retaining gradient flow.
-- A standalone smoke check successfully zero-padded and normalized 36 values with PennyLane `AmplitudeEmbedding` on six qubits, executed through the PyTorch interface on the ROCm device, and produced finite gradients. This verifies technical feasibility only; it is not a trained classifier or research result.
+- The amplitude-QML learner completed batched optimizer steps and the CLI completed state generation, 36D extraction, training, prediction, split capture, and JSON serialization on ROCm. These are implementation checks, not research results.
+- The controlled-comparison CLI completed a deliberately undersized ROCm smoke run across the three MLP controls and amplitude QML using one shared split. Its metrics are not research evidence.
 - There are no committed experiment JSON files from which the manuscript metrics can be regenerated or independently inspected.
 
 Test counts by module:
 
 | Module | Test functions |
 |---|---:|
+| `test_amplitude_qml.py` | 5 |
+| `test_controlled_comparison.py` | 3 |
 | `test_dps_oracle.py` | 21 |
 | `test_feature_extraction.py` | 7 |
 | `test_integration.py` | 4 |
@@ -56,9 +59,9 @@ Test counts by module:
 | `test_state_generation.py` | 21 |
 | `test_transformer_witness.py` | 18 |
 | `test_variational_povm.py` | 19 |
-| **Total** | **112** |
+| **Total** | **120** |
 
-The current checkout result is 112/112 tests passing. Six artifact tests were removed because they duplicated stronger coverage or asserted only that an oracle returned a Boolean. Integration-test logging, ignored return values, direct-execution boilerplate, and unused imports were also removed.
+The current checkout result is 120/120 tests passing.
 
 ## Implemented modules
 
@@ -71,6 +74,7 @@ The current checkout result is 112/112 tests passing. Six artifact tests were re
 - Transformer architecture and training.
 - MLP architecture and training.
 - Variational POVM architecture and training.
+- Six-qubit amplitude-QML architecture and training.
 - Feature selection, witness sparsification, logging, and paths.
 
 ### State generation and labels
@@ -91,6 +95,8 @@ The current manuscript's answer key is the NPT rule: a state is labeled positive
 
 `src/feature_extraction/pauli_features.py` provides full Pauli bases, feature extraction, the 36D one- and two-body subset, commuting grouping, and measurement-cost estimation.
 
+`src/feature_extraction/preprocessing.py` provides the three amplitude-encoding controls: raw 36D features, row-wise L2-normalized 36D features, and normalized features with the discarded norm appended as feature 37.
+
 ### Models
 
 `src/ml_models/svm_witness.py` implements a linear SVM and conversion of its fixed coefficient vector into a `SparsePauliOp`.
@@ -107,6 +113,8 @@ The hybrid output is state-adaptive and should not be conflated with one fixed l
 
 `src/ml_models/variational_povm.py` implements a PyTorch parameterized unitary and learned two-outcome measurement operating on density matrices. This is a simulated variational POVM, not a PennyLane circuit and not an amplitude-encoding implementation.
 
+`src/ml_models/amplitude_qml.py` implements 36D-to-64D zero-padded amplitude embedding on six qubits, `StronglyEntanglingLayers`, two Pauli-Z output logits, batched training, early stopping, prediction, persistence, and explicit split capture. Zero-norm vectors are rejected because they cannot define an amplitude-encoded state.
+
 ### Experiment scripts
 
 | Script | Scope |
@@ -115,6 +123,8 @@ The hybrid output is state-adaptive and should not be conflated with one fixed l
 | `run_mlp_experiments.py` | MLP baseline, family, and multi-seed studies |
 | `run_transformer_experiments.py` | Transformer comparison, scaling, family, ablation, and witness analysis |
 | `run_povm_experiments.py` | Variational POVM baseline, comparison, depth, and multi-seed studies |
+| `run_amplitude_qml_experiment.py` | Six-qubit amplitude-QML training and split-aware JSON output |
+| `run_controlled_qml_comparison.py` | Three MLP normalization controls and amplitude QML on one shared split |
 | `run_noise_experiments.py` | Depolarizing, dephasing, and amplitude-damping sweeps |
 | `run_supplementary_classifiers.py` | Random-forest and gradient-boosting controls |
 | `run_comparative_analysis.py` | Combined model evaluation and plots |
@@ -123,21 +133,19 @@ The hybrid output is state-adaptive and should not be conflated with one fixed l
 
 ## Known documentation and reproducibility gaps
 
-1. Reported metrics exist in the manuscript/context but not as committed machine-readable artifacts.
+1. Reported manuscript metrics are not yet reproduced as committed machine-readable artifacts; this is deliberately deferred until the comparison implementation stabilizes.
 2. Several historical values differ: SVM accuracy appears as 85.3%, 85.6%, and 86.3% for different analyses or summaries.
-3. Dataset splits are generated by scripts but are not frozen as reusable split artifacts.
+3. Shared split indices and paired test predictions are emitted by the controlled comparison, but no report-scale split artifact has been frozen yet.
 4. CVXPY remains outside the general `requirements.txt`, but it is included in the machine-specific `requirements-rocm.lock` used by the audited environment.
 5. The near-perfect nonlinear results have not yet been documented with leakage and family-held-out controls.
-6. PennyLane is installed and locked for this machine and a smoke check passed, but no reusable quantum circuit, classifier, training pipeline, test, or normalization-control experiment exists in the repository.
+6. The controlled comparison is implementation-verified only; it has not been run at report scale or interpreted scientifically.
 
 ## Current research priorities
 
-1. Reproduce the current classical manuscript table and commit result artifacts.
-2. Freeze seeds and train/test indices so every model uses identical splits.
-3. Run raw, L2-normalized, and L2-normalized-plus-norm classical controls.
-4. Stress-test MLP and transformer performance under family-held-out and boundary-focused evaluation.
-5. Repeat the 36D-vs-63D comparison for nonlinear models.
-6. Implement the proposed six-qubit amplitude-encoded classifier separately from direct-state input experiments.
+1. Implement the direct-state QML proposal as a separate operational experiment.
+2. Stress-test nonlinear performance under family-held-out and boundary-focused evaluation.
+3. Repeat the 36D-vs-63D comparison for nonlinear models.
+4. Run the controlled comparison at report scale and freeze final artifacts after the implementation stabilizes.
 
 ## Status discipline
 

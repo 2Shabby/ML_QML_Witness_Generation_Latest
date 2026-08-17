@@ -39,6 +39,18 @@ except ImportError:
     VariationalPOVMClassifier = None
     ParameterizedUnitary = None
 
+# Conditionally import amplitude-encoded QML (requires PyTorch and PennyLane)
+try:
+    from .amplitude_qml import (
+        AmplitudeEncodedQMLClassifier,
+        AmplitudeQMLClassifierLearner,
+    )
+    _AMPLITUDE_QML_AVAILABLE = True
+except ImportError:
+    _AMPLITUDE_QML_AVAILABLE = False
+    AmplitudeEncodedQMLClassifier = None
+    AmplitudeQMLClassifierLearner = None
+
 __all__ = [
     'SVMWitnessLearner',
 ]
@@ -64,4 +76,10 @@ if _POVM_AVAILABLE:
         'VariationalPOVMLearner',
         'VariationalPOVMClassifier',
         'ParameterizedUnitary',
+    ])
+
+if _AMPLITUDE_QML_AVAILABLE:
+    __all__.extend([
+        'AmplitudeEncodedQMLClassifier',
+        'AmplitudeQMLClassifierLearner',
     ])

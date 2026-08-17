@@ -147,6 +147,32 @@ DEFAULT_POVM_CONFIG = POVMConfig()
 
 
 # =============================================================================
+# AMPLITUDE-ENCODED QML CONFIGURATION
+# =============================================================================
+
+@dataclass
+class AmplitudeQMLConfig:
+    """Configuration for the six-qubit amplitude-encoded classifier."""
+    n_features: int = 36
+    n_qubits: int = 6
+    n_layers: int = 2
+    learning_rate: float = 1e-2
+    batch_size: int = 16
+    n_epochs: int = 50
+    patience: int = 10
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert config to a dictionary."""
+        return {
+            field_name: getattr(self, field_name)
+            for field_name in self.__dataclass_fields__
+        }
+
+
+DEFAULT_AMPLITUDE_QML_CONFIG = AmplitudeQMLConfig()
+
+
+# =============================================================================
 # LOGGING CONFIGURATION
 # =============================================================================
 
@@ -183,6 +209,9 @@ __all__ = [
     # POVM
     'POVMConfig',
     'DEFAULT_POVM_CONFIG',
+    # Amplitude-encoded QML
+    'AmplitudeQMLConfig',
+    'DEFAULT_AMPLITUDE_QML_CONFIG',
     # Logging
     'DEFAULT_LOG_FORMAT',
     # Paths

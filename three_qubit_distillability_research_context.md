@@ -426,7 +426,7 @@ An ignored Python 3.12 environment at `env/rocm` contains PyTorch 2.12.1 + ROCm 
 4. returned a Pauli-Z expectation value, and
 5. backpropagated finite gradients through PennyLane's PyTorch interface on the ROCm device.
 
-This establishes that the proposed software path can execute locally. It does **not** implement the repository classifier, choose a justified ansatz, train on the distillability dataset, provide controlled baselines, or establish a QML result.
+The repository now implements this path in `src/ml_models/amplitude_qml.py` with a split-aware learner and runnable CLI. Batched optimization and end-to-end generated-data execution are verified on ROCm. The normalization controls and identical-split comparison path are also implemented, but have not been run at report scale. This does **not** yet justify the chosen ansatz or establish a QML research result.
 
 ---
 
@@ -461,9 +461,9 @@ These two experiments should not be conflated.
 
 # 11. PROPOSED_CONTROL_EXPERIMENT_0
 
-**Status:** proposed in discussion; not yet performed.
+**Status:** implemented and smoke-verified on ROCm; report-scale execution and interpretation remain pending.
 
-Before implementing the QML amplitude-encoding classifier:
+Before interpreting the QML classifier experimentally:
 
 1. Take the existing 36D input vectors.
 2. L2-normalize each vector exactly as required by amplitude encoding.
@@ -541,18 +541,15 @@ How does performance change on real hardware or simulated correlated hardware no
 
 Ordered for information gain, not commitment.
 
-Completed enabling work: the locked local ROCm/PennyLane environment, a differentiable six-qubit amplitude-embedding smoke check, and the focused 112-test suite are verified. The following research and implementation work remains:
+Completed enabling work: the locked ROCm/PennyLane environment, reusable six-qubit amplitude-QML classifier, all three classical normalization controls, and their identical-split comparison CLI are verified. The following work remains:
 
-1. **Reproduce and freeze current classical results.**
-2. **Run raw, L2-normalized, and norm-preserving classical controls.**
-3. **Audit nonlinear 100% accuracy for leakage / shortcut learning.**
-4. **Repeat 36D-vs-63D ablation for nonlinear classical models.**
-5. **Implement 6-qubit amplitude-encoded variational quantum classifier.**
-6. **Compare QML against classical model using identically transformed input.**
-7. **Separately test direct density-matrix/state-input quantum classification in simulation.**
-8. **Expand near-PPT/NPT-boundary evaluation.**
-9. **Investigate connected-correlator / factorization-aware features.**
-10. **Investigate sparse measurement subsets and hardware validation.**
+1. **Separately test direct density-matrix/state-input quantum classification in simulation.**
+2. **Audit nonlinear 100% accuracy for leakage / shortcut learning.**
+3. **Repeat 36D-vs-63D ablation for nonlinear classical models.**
+4. **Expand near-PPT/NPT-boundary evaluation.**
+5. **Investigate connected-correlator / factorization-aware features.**
+6. **Investigate sparse measurement subsets and hardware validation.**
+7. **Run the controlled QML comparison at report scale and freeze final baselines after implementation stabilizes.**
 
 ---
 

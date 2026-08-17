@@ -12,6 +12,7 @@ import logging
 from typing import Any, Optional
 
 import numpy as np
+from sklearn.model_selection import train_test_split
 
 # Try to import torch for complete seed setting
 try:
@@ -137,10 +138,28 @@ def get_split_seed(base_seed: Optional[int], offset: int = 1000) -> Optional[int
     return base_seed + offset if base_seed is not None else None
 
 
+def stratified_split_indices(
+    labels: np.ndarray,
+    test_size: float = 0.2,
+    random_state: Optional[int] = None,
+) -> dict[str, np.ndarray]:
+    """Return reproducible train/test indices for reuse across models."""
+    labels = np.asarray(labels)
+    indices = np.arange(len(labels))
+    train_indices, test_indices = train_test_split(
+        indices,
+        test_size=test_size,
+        random_state=get_split_seed(random_state),
+        stratify=labels,
+    )
+    return {"train": train_indices, "test": test_indices}
+
+
 __all__ = [
     'set_seed',
     'convert_to_json_serializable',
     'setup_logging',
     'get_split_seed',
+    'stratified_split_indices',
     'TORCH_AVAILABLE',
 ]

@@ -13,5 +13,8 @@ matplotlib>=3.7.0
 # Transformer models (PyTorch-based)
 torch>=2.0.0
 
+# Six-qubit amplitude-encoded QML classifier
+pennylane>=0.45,<0.46
+
 # Future (DPS hierarchy for rigorous SDP-based labeling - uncomment when needed)
 # cvxpy>=1.4.0

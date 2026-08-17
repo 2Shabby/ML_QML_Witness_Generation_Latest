@@ -2,7 +2,7 @@
 
 This repository studies whether three-qubit distillability can be classified from 36 experimentally accessible one- and two-body Pauli expectation values instead of full state tomography.
 
-The classical baseline is implemented. The active research direction is to validate the reported nonlinear results and compare them fairly with quantum-classification approaches, including a proposed six-qubit amplitude-encoded variational classifier.
+The classical baseline and a controlled six-qubit amplitude-QML comparison are implemented. The active research direction is to validate these models rigorously and evaluate the separate direct-state circuit proposal.
 
 ## Research sources of truth
 
@@ -39,10 +39,11 @@ The 36 observables can be grouped into 12 measurement settings. The full density
 | Linear SVM | 36D Pauli features | Interpretable fixed linear witness baseline |
 | MLP | 36D Pauli features | Nonlinear classical baseline |
 | Transformer | 36D Pauli features | Nonlinear standard and state-adaptive hybrid models |
+| Amplitude QML | 36D Pauli features | Six-qubit zero-padded amplitude-encoded classifier |
 | Variational POVM | Three-qubit density matrix | PyTorch simulation of a learned measurement |
 | Random forest / gradient boosting | 36D Pauli features | Supplementary nonlinear controls |
 
-The variational POVM is not a PennyLane QML circuit and is not the proposed amplitude-encoded classifier.
+The amplitude-QML and direct-state variational POVM models represent different operational questions and should not be conflated.
 
 ## Project layout
 
@@ -57,7 +58,9 @@ The variational POVM is not a PennyLane QML circuit and is not the proposed ampl
 ├── src/
 │   ├── config.py
 │   ├── feature_extraction/pauli_features.py
+│   ├── feature_extraction/preprocessing.py
 │   ├── ml_models/
+│   │   ├── amplitude_qml.py
 │   │   ├── svm_witness.py
 │   │   ├── mlp_classifier.py
 │   │   ├── transformer_witness.py
@@ -73,30 +76,7 @@ The variational POVM is not a PennyLane QML circuit and is not the proposed ampl
 
 ## Installation
 
-Create an isolated Python environment, then install the declared dependencies:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
-
-CVXPY is presently commented out in `requirements.txt`. Install it separately before running SDP-specific tests:
-
-```bash
-python -m pip install 'cvxpy>=1.4.0'
-```
-
-PennyLane is not yet a declared project dependency because the proposed amplitude-encoded QML extension has not been implemented. Install it for QML development with:
-
-```bash
-python -m pip install 'pennylane>=0.45,<0.46'
-```
-
-### Verified local ROCm environment
-
-On the audited RX 7800 XT workstation, the ignored environment at `env/rocm` is already installed and can be activated with:
+The RX 7800 XT ROCm environment is the supported project environment. The existing ignored environment can be activated with:
 
 ```bash
 source env/rocm/bin/activate
@@ -136,7 +116,7 @@ print(witness)
 
 ## Tests
 
-The checkout contains 112 focused test functions across seven modules. Run them in the ROCm environment:
+The checkout contains 120 focused test functions across nine modules. Run them in the ROCm environment:
 
 ```bash
 python -m pytest -q
@@ -148,10 +128,12 @@ Useful subsets:
 python -m pytest tests/test_state_generation.py tests/test_feature_extraction.py -q
 python -m pytest tests/test_mlp_classifier.py tests/test_transformer_witness.py -q
 python -m pytest tests/test_variational_povm.py -q
+python -m pytest tests/test_amplitude_qml.py -q
+python -m pytest tests/test_controlled_comparison.py -q
 python -m pytest tests/test_dps_oracle.py -q
 ```
 
-The verified ROCm environment currently reports 112 passed and five warnings. The MLP handles singleton training batches by using existing batch-normalization running statistics for that case; see [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
+The verified ROCm environment currently reports 120 passed and five warnings; see [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
 
 ## Experiments
 
@@ -177,6 +159,22 @@ python scripts/run_supplementary_classifiers.py
 python scripts/run_comparative_analysis.py --n-samples 5000 --seed 42 --save-plots
 ```
 
+Amplitude-encoded QML:
+
+```bash
+python scripts/run_amplitude_qml_experiment.py \
+  --n-samples 5000 --seed 42 --n-epochs 50 \
+  --output results/amplitude_qml.json
+```
+
+Controlled normalization comparison on one shared split:
+
+```bash
+python scripts/run_controlled_qml_comparison.py \
+  --n-samples 5000 --seed 42 --mlp-epochs 100 --qml-epochs 50 \
+  --output results/controlled_qml_comparison.json
+```
+
 Plot saved result artifacts:
 
 ```bash
@@ -187,13 +185,10 @@ New reported results should be stored in `results/` and entered in [EXPERIMENT_L
 
 ## Immediate research backlog
 
-1. Reproduce and freeze the classical baseline.
-2. Compare raw, L2-normalized, and norm-preserving classical controls.
-3. Audit nonlinear models for leakage and state-family shortcuts.
-4. Repeat the 36D-vs-63D ablation for nonlinear models.
-5. Implement the six-qubit amplitude-encoded quantum classifier.
-6. Compare classical and quantum models using identical transformed inputs.
-7. Evaluate the direct-state circuit proposal separately.
+1. Evaluate the direct-state circuit proposal separately.
+2. Audit nonlinear models for leakage and state-family shortcuts.
+3. Repeat the 36D-vs-63D ablation for nonlinear models.
+4. Run the controlled comparison at report scale and freeze final baselines after implementation stabilizes.
 
 ## License
 
