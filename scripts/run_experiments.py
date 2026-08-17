@@ -18,7 +18,6 @@ Usage:
 import argparse
 import json
 import logging
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -58,7 +57,7 @@ from src.config import (
     DEFAULT_LOG_FORMAT,
     RESULTS_DIR,
 )
-from src.utils import convert_to_json_serializable, setup_logging
+from src.utils import convert_to_json_serializable
 
 # Set up logging using centralized utility
 logging.basicConfig(level=logging.INFO, format=DEFAULT_LOG_FORMAT)

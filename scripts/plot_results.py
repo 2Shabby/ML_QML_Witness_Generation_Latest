@@ -23,7 +23,7 @@ import sys
 from datetime import datetime
 from glob import glob
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 

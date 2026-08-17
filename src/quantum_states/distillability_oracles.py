@@ -12,14 +12,14 @@ References:
 
 import numpy as np
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple, Dict, Union
+from typing import Dict
 from qiskit.quantum_info import DensityMatrix
 import logging
 
 logger = logging.getLogger(__name__)
 
 # Import existing NPT implementation
-from .state_generation import check_npt_any_bipartition, partial_transpose, _permute_qubits
+from .state_generation import check_npt_any_bipartition, _permute_qubits
 
 
 class DistillabilityOracle(ABC):

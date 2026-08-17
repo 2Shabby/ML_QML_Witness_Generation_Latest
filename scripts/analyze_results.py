@@ -15,12 +15,10 @@ Usage:
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime
-from glob import glob
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict
 
 import numpy as np
 

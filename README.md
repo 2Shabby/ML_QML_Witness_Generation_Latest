@@ -60,8 +60,7 @@ The variational POVM is not a PennyLane QML circuit and is not the proposed ampl
 │   │   ├── svm_witness.py
 │   │   ├── mlp_classifier.py
 │   │   ├── transformer_witness.py
-│   │   ├── variational_povm.py
-│   │   └── witness_utils.py
+│   │   └── variational_povm.py
 │   ├── quantum_states/
 │   │   ├── state_generation.py
 │   │   └── distillability_oracles.py

@@ -33,7 +33,6 @@ class SVMConfig:
     """Configuration for SVM witness learner."""
     C: float = 1.0
     kernel: str = 'linear'
-    l1_ratio: float = 0.0
 
 
 DEFAULT_SVM_CONFIG = SVMConfig()
@@ -148,39 +147,21 @@ DEFAULT_POVM_CONFIG = POVMConfig()
 
 
 # =============================================================================
-# FEATURE EXTRACTION DEFAULTS
-# =============================================================================
-
-DEFAULT_N_QUBITS = 3
-DEFAULT_FEATURE_SET = 'two_body'  # Options: 'two_body' (36D), 'full' (63D)
-
-
-# =============================================================================
-# WITNESS EXTRACTION DEFAULTS
-# =============================================================================
-
-DEFAULT_SPARSE_THRESHOLD = 0.01  # Threshold for sparse witness extraction
-
-
-# =============================================================================
 # LOGGING CONFIGURATION
 # =============================================================================
 
 DEFAULT_LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-SIMPLE_LOG_FORMAT = '%(levelname)s: %(message)s'
 
 
 # =============================================================================
 # PATH CONFIGURATION
 # =============================================================================
 
-import os
 from pathlib import Path
 
 # Project root (parent of src/)
 PROJECT_ROOT = Path(__file__).parent.parent
 RESULTS_DIR = PROJECT_ROOT / 'results'
-DATA_DIR = PROJECT_ROOT / 'data'
 
 
 __all__ = [
@@ -202,16 +183,9 @@ __all__ = [
     # POVM
     'POVMConfig',
     'DEFAULT_POVM_CONFIG',
-    # Feature extraction
-    'DEFAULT_N_QUBITS',
-    'DEFAULT_FEATURE_SET',
-    # Witness
-    'DEFAULT_SPARSE_THRESHOLD',
     # Logging
     'DEFAULT_LOG_FORMAT',
-    'SIMPLE_LOG_FORMAT',
     # Paths
     'PROJECT_ROOT',
     'RESULTS_DIR',
-    'DATA_DIR',
 ]

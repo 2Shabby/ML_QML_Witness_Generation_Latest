@@ -25,13 +25,13 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, Optional
 
 import numpy as np
-from sklearn.model_selection import train_test_split, learning_curve
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    confusion_matrix, classification_report, roc_curve, auc,
+    confusion_matrix, roc_curve, auc,
     precision_recall_curve, average_precision_score
 )
 from sklearn.svm import SVC
@@ -45,10 +45,7 @@ from src.feature_extraction.pauli_features import (
     create_sparse_measurement_set,
     extract_features_batch
 )
-from src.ml_models.svm_witness import SVMWitnessLearner
 from src.config import (
-    DEFAULT_N_SAMPLES,
-    DEFAULT_NOISE_RANGE,
     DEFAULT_SEED,
     DEFAULT_TRANSFORMER_CONFIG,
     DEFAULT_MLP_CONFIG,
@@ -60,7 +57,6 @@ from src.utils import convert_to_json_serializable, set_seed, TORCH_AVAILABLE
 
 # Try to import transformer and MLP
 if TORCH_AVAILABLE:
-    import torch
     from src.ml_models.transformer_witness import TransformerWitnessLearner
     from src.ml_models.mlp_classifier import MLPClassifierLearner
 

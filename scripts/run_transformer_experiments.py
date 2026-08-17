@@ -18,7 +18,6 @@ Usage:
 import argparse
 import json
 import logging
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -28,7 +27,7 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    confusion_matrix, classification_report
+    confusion_matrix
 )
 
 # Add project root to path
@@ -60,11 +59,10 @@ from src.config import (
     DEFAULT_LOG_FORMAT,
     RESULTS_DIR,
 )
-from src.utils import convert_to_json_serializable, setup_logging, TORCH_AVAILABLE
+from src.utils import convert_to_json_serializable, TORCH_AVAILABLE
 
 # Try to import transformer (may fail if torch not installed)
 if TORCH_AVAILABLE:
-    import torch
     from src.ml_models.transformer_witness import TransformerWitnessLearner
 else:
     print("Warning: PyTorch not installed. Install with: pip install torch")

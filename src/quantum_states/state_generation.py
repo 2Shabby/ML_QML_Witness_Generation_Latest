@@ -10,8 +10,7 @@ from qiskit.quantum_info import (
     DensityMatrix,
     Statevector,
     random_statevector,
-    random_density_matrix,
-    partial_trace
+    random_density_matrix
 )
 from typing import Tuple, List, Optional
 import logging

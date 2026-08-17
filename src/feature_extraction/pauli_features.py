@@ -9,8 +9,8 @@ Feature vector: x_ρ = (r₁, r₂, ..., r_{d²-1}) where rₖ = Tr(ρ Pₖ)
 """
 
 import numpy as np
-from qiskit.quantum_info import DensityMatrix, Pauli, PauliList
-from typing import List, Tuple, Optional
+from qiskit.quantum_info import DensityMatrix, PauliList
+from typing import List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -53,8 +53,7 @@ def get_pauli_basis(n_qubits: int, include_identity: bool = False) -> PauliList:
 
 def extract_pauli_features(
     rho: DensityMatrix,
-    pauli_basis: Optional[PauliList] = None,
-    normalize: bool = False
+    pauli_basis: Optional[PauliList] = None
 ) -> np.ndarray:
     """
     Extract Pauli feature vector from a density matrix.
@@ -66,8 +65,6 @@ def extract_pauli_features(
     Args:
         rho: Density matrix to extract features from
         pauli_basis: Pauli basis to use (if None, generated automatically)
-        normalize: Whether to normalize (deprecated, kept for compatibility)
-
     Returns:
         Feature vector as numpy array
     """
@@ -92,7 +89,6 @@ def extract_pauli_features(
 def extract_features_batch(
     states: List[DensityMatrix],
     pauli_basis: Optional[PauliList] = None,
-    normalize: bool = False,
     verbose: bool = True
 ) -> np.ndarray:
     """
@@ -103,7 +99,6 @@ def extract_features_batch(
     Args:
         states: List of density matrices
         pauli_basis: Pauli basis to use (computed once, reused for all)
-        normalize: Whether to normalize features
         verbose: Whether to log progress
 
     Returns:
@@ -128,7 +123,7 @@ def extract_features_batch(
         if verbose and (i + 1) % 100 == 0:
             logger.info(f"Processed {i + 1}/{len(states)} states")
 
-        features = extract_pauli_features(state, pauli_basis, normalize)
+        features = extract_pauli_features(state, pauli_basis)
         features_list.append(features)
 
     feature_matrix = np.array(features_list)

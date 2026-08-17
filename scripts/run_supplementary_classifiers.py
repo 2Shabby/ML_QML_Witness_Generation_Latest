@@ -21,8 +21,7 @@ sys.path.insert(0, str(project_root))
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score,
-    classification_report
+    accuracy_score, precision_score, recall_score, f1_score
 )
 
 from src.quantum_states.state_generation import generate_distillability_dataset

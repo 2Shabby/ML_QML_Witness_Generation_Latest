@@ -14,9 +14,8 @@ import argparse
 import json
 import logging
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import List
 
 import numpy as np
 from sklearn.svm import SVC
@@ -31,14 +30,12 @@ from src.quantum_states.state_generation import (
     generate_entangled_state,
     generate_3qubit_product_state,
     generate_noisy_cluster_state,
-    generate_random_density_matrix,
     check_npt_any_bipartition
 )
 from src.feature_extraction.pauli_features import (
     create_sparse_measurement_set,
     get_pauli_basis,
-    extract_features_batch,
-    extract_pauli_features
+    extract_features_batch
 )
 from qiskit.quantum_info import DensityMatrix
 

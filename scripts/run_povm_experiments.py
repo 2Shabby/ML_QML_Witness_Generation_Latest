@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 
 # Conditional imports
 try:
-    import torch
     from src.ml_models.variational_povm import VariationalPOVMLearner
     from src.ml_models.svm_witness import SVMWitnessLearner
     TORCH_AVAILABLE = True

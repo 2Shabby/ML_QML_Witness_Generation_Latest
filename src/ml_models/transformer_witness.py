@@ -25,7 +25,6 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score
 from qiskit.quantum_info import PauliList, SparsePauliOp
 from typing import Tuple, Dict, Optional, List
 import logging
-import math
 
 from ..config import DEFAULT_TRANSFORMER_CONFIG
 from ..utils import set_seed, get_split_seed

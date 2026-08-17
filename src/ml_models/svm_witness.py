@@ -13,7 +13,7 @@ from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 from qiskit.quantum_info import PauliList, SparsePauliOp
-from typing import Tuple, Dict, Optional
+from typing import Dict, Optional
 import logging
 
 from ..utils import get_split_seed
@@ -35,7 +35,6 @@ class SVMWitnessLearner:
         self,
         pauli_basis: PauliList,
         C: float = 1.0,
-        l1_ratio: float = 0.0,
         kernel: str = 'linear',
         random_state: Optional[int] = None
     ):
@@ -45,13 +44,11 @@ class SVMWitnessLearner:
         Args:
             pauli_basis: Pauli basis used for feature extraction
             C: Regularization parameter (smaller = more regularization)
-            l1_ratio: L1 regularization ratio for sparse witnesses (0.0 = L2 only)
             kernel: SVM kernel ('linear' for interpretable witnesses)
             random_state: Random seed for reproducibility
         """
         self.pauli_basis = pauli_basis
         self.C = C
-        self.l1_ratio = l1_ratio
         self.kernel = kernel
         self.random_state = random_state
 
