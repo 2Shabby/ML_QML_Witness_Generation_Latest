@@ -1,46 +1,16 @@
 """
-Centralized Configuration for ML-QML Witness Generation
+Centralized Configuration for ML-QML Witness Generation.
 
-This module provides a single source of truth for all configuration values
-used across the project, including experiment parameters, model hyperparameters,
-and default settings.
+Only the settings actually consumed by the live code paths live here:
+the transformer architecture/training defaults and the log format.
+The MLP, SVM, and both QML learners keep their hyperparameters as
+constructor defaults; ``scripts/run_clean_dataset_experiments.py``
+records the exact settings in its JSON artifact.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
-
-# =============================================================================
-# EXPERIMENT DEFAULTS
-# =============================================================================
-
-# Dataset generation
-DEFAULT_N_SAMPLES = 5000
-DEFAULT_NOISE_RANGE: Tuple[float, float] = (0.0, 0.5)
-
-# Cross-validation
-DEFAULT_CV_FOLDS = 5
-DEFAULT_SEEDS: List[int] = [42, 123, 456, 789, 1011]
-DEFAULT_SEED = 42
-
-
-# =============================================================================
-# SVM CONFIGURATION
-# =============================================================================
-
-@dataclass
-class SVMConfig:
-    """Configuration for SVM witness learner."""
-    C: float = 1.0
-    kernel: str = 'linear'
-
-
-DEFAULT_SVM_CONFIG = SVMConfig()
-
-
-# =============================================================================
-# TRANSFORMER CONFIGURATION
-# =============================================================================
 
 @dataclass
 class TransformerConfig:
@@ -89,160 +59,14 @@ DEFAULT_TRANSFORMER_CONFIG = TransformerConfig()
 
 
 # =============================================================================
-# MLP CONFIGURATION
-# =============================================================================
-
-@dataclass
-class MLPConfig:
-    """Configuration for MLP discriminator classifier."""
-    hidden_dims: List[int] = field(default_factory=lambda: [128, 64, 32])
-    dropout: float = 0.3
-    learning_rate: float = 1e-3
-    batch_size: int = 64
-    n_epochs: int = 100
-    patience: int = 15
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert config to dictionary."""
-        return {
-            'hidden_dims': self.hidden_dims,
-            'dropout': self.dropout,
-            'learning_rate': self.learning_rate,
-            'batch_size': self.batch_size,
-            'n_epochs': self.n_epochs,
-            'patience': self.patience,
-        }
-
-
-DEFAULT_MLP_CONFIG = MLPConfig()
-
-
-# =============================================================================
-# POVM CONFIGURATION
-# =============================================================================
-
-@dataclass
-class POVMConfig:
-    """Configuration for variational POVM learner."""
-    n_qubits: int = 3
-    n_layers: int = 4
-    learning_rate: float = 1e-3
-    batch_size: int = 64
-    n_epochs: int = 200
-    patience: int = 20
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert config to dictionary."""
-        return {
-            'n_qubits': self.n_qubits,
-            'n_layers': self.n_layers,
-            'learning_rate': self.learning_rate,
-            'batch_size': self.batch_size,
-            'n_epochs': self.n_epochs,
-            'patience': self.patience,
-        }
-
-
-DEFAULT_POVM_CONFIG = POVMConfig()
-
-
-# =============================================================================
-# AMPLITUDE-ENCODED QML CONFIGURATION
-# =============================================================================
-
-@dataclass
-class AmplitudeQMLConfig:
-    """Configuration for the six-qubit amplitude-encoded classifier."""
-    n_features: int = 36
-    n_qubits: int = 6
-    n_layers: int = 2
-    learning_rate: float = 1e-2
-    batch_size: int = 16
-    n_epochs: int = 50
-    patience: int = 10
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert config to a dictionary."""
-        return {
-            field_name: getattr(self, field_name)
-            for field_name in self.__dataclass_fields__
-        }
-
-
-DEFAULT_AMPLITUDE_QML_CONFIG = AmplitudeQMLConfig()
-
-
-# =============================================================================
-# DIRECT-STATE QML CONFIGURATION
-# =============================================================================
-
-@dataclass
-class DirectStateQMLConfig:
-    """Configuration for direct three-qubit density-matrix classification."""
-    n_qubits: int = 3
-    n_layers: int = 2
-    learning_rate: float = 1e-2
-    batch_size: int = 16
-    n_epochs: int = 50
-    patience: int = 10
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert config to a dictionary."""
-        return {
-            field_name: getattr(self, field_name)
-            for field_name in self.__dataclass_fields__
-        }
-
-
-DEFAULT_DIRECT_STATE_QML_CONFIG = DirectStateQMLConfig()
-
-
-# =============================================================================
 # LOGGING CONFIGURATION
 # =============================================================================
 
 DEFAULT_LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
 
-# =============================================================================
-# PATH CONFIGURATION
-# =============================================================================
-
-from pathlib import Path
-
-# Project root (parent of src/)
-PROJECT_ROOT = Path(__file__).parent.parent
-RESULTS_DIR = PROJECT_ROOT / 'results'
-
-
 __all__ = [
-    # Experiment defaults
-    'DEFAULT_N_SAMPLES',
-    'DEFAULT_NOISE_RANGE',
-    'DEFAULT_CV_FOLDS',
-    'DEFAULT_SEEDS',
-    'DEFAULT_SEED',
-    # SVM
-    'SVMConfig',
-    'DEFAULT_SVM_CONFIG',
-    # Transformer
     'TransformerConfig',
     'DEFAULT_TRANSFORMER_CONFIG',
-    # MLP
-    'MLPConfig',
-    'DEFAULT_MLP_CONFIG',
-    # POVM
-    'POVMConfig',
-    'DEFAULT_POVM_CONFIG',
-    # Amplitude-encoded QML
-    'AmplitudeQMLConfig',
-    'DEFAULT_AMPLITUDE_QML_CONFIG',
-    # Direct-state QML
-    'DirectStateQMLConfig',
-    'DEFAULT_DIRECT_STATE_QML_CONFIG',
-    # Logging
     'DEFAULT_LOG_FORMAT',
-    # Paths
-    'PROJECT_ROOT',
-    'RESULTS_DIR',
 ]

@@ -273,54 +273,46 @@ class TestMLPClassifierLearner:
 class TestMLPWithQuantumData:
     """Integration tests with quantum state features."""
 
-    def test_with_pauli_features(self):
-        """Test with actual Pauli feature dimensions."""
-        from src.feature_extraction.pauli_features import extract_features_batch
-        from src.quantum_states.state_generation import generate_distillability_dataset
-
-        # Generate small dataset
-        states, labels = generate_distillability_dataset(
-            n_samples=100,
-            noise_range=(0.0, 0.5),
-            seed=42
+    @staticmethod
+    def _quantum_features(n_samples=200, seed=42):
+        from src.quantum_states.balanced_dataset import (
+            generate_balanced_distillability_dataset,
         )
 
-        # Extract features
+        states, labels, _ = generate_balanced_distillability_dataset(
+            n_samples=n_samples, seed=seed
+        )
         basis = create_sparse_measurement_set(3, 'two_body')
-        features = extract_features_batch(states, basis, verbose=False)
+        M = np.asarray(basis.to_matrix(), dtype=np.complex128)
+        R = np.stack([np.asarray(s.data, dtype=np.complex128) for s in states])
+        features = np.einsum("kij,bji->bk", M, R).real
+        return features, np.asarray(labels)
 
-        # Train classifier
+    def test_with_pauli_features(self):
+        """Test with actual Pauli feature dimensions."""
+        features, labels = self._quantum_features()
+
         learner = MLPClassifierLearner(
-            n_features=len(basis),
+            n_features=features.shape[1],
             n_epochs=30,
             random_state=42
         )
 
-        metrics = learner.train(features, np.array(labels), verbose=False)
+        metrics = learner.train(features, labels, verbose=False)
 
         # Should achieve reasonable accuracy
         assert metrics['test_accuracy'] > 0.55
 
     def test_predictions_consistent_with_probabilities(self):
         """Test that predictions are consistent with highest probability class."""
-        from src.quantum_states.state_generation import generate_distillability_dataset
-        from src.feature_extraction.pauli_features import extract_features_batch
-
-        states, labels = generate_distillability_dataset(
-            n_samples=100,
-            noise_range=(0.0, 0.5),
-            seed=42
-        )
-
-        basis = create_sparse_measurement_set(3, 'two_body')
-        features = extract_features_batch(states, basis, verbose=False)
+        features, labels = self._quantum_features(n_samples=100)
 
         learner = MLPClassifierLearner(
-            n_features=len(basis),
+            n_features=features.shape[1],
             n_epochs=20,
             random_state=42
         )
-        learner.train(features, np.array(labels), verbose=False)
+        learner.train(features, labels, verbose=False)
 
         # Get predictions and probabilities
         predictions = learner.predict(features[:20])

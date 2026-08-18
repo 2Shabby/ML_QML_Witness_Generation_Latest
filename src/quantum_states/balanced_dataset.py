@@ -28,9 +28,9 @@ where
 
 Note on the feature norm: the 36D feature vector is *linear* in ``q``,
 but its L2 norm is NOT a weighted sum of the endpoint norms.  Whether
-norm / purity / ``q`` still predict the label must therefore be
-established empirically by the audit script
-(``scripts/validate_dataset_confound.py``), not assumed.
+norm / purity / ``q`` still predict the label is therefore established
+empirically (norm-only and purity-only diagnostics in
+``scripts/run_clean_dataset_experiments.py``), not assumed.
 
 Labels are always computed from the NPT oracle on the final state
 (``check_npt_any_bipartition``); bisection is used only to *place*
@@ -151,8 +151,19 @@ def _npt_generalized_w(rng: np.random.Generator, apply_local_rotation: bool = Tr
 
 def _npt_cluster(rng: np.random.Generator, apply_local_rotation: bool = True) -> Tuple[np.ndarray, dict]:
     """3-qubit linear cluster state, optionally with random local rotations."""
-    from .state_generation import generate_noisy_cluster_state
-    rho = generate_noisy_cluster_state(n_qubits=3, noise_level=0.0).data
+    # |cluster> = CZ_01 CZ_12 |+>^x3: each CZ flips the sign when its two
+    # qubits are both |1> (so |111> accumulates two flips -> +1)
+    plus = np.array([1.0, 1.0], dtype=complex) / np.sqrt(2)
+    psi = plus.copy()
+    for _ in range(2):
+        psi = np.kron(psi, plus)
+    for idx in range(_DIMS_3Q):
+        b0, b1, b2 = (idx >> 2) & 1, (idx >> 1) & 1, idx & 1
+        if b0 & b1:
+            psi[idx] *= -1
+        if b1 & b2:
+            psi[idx] *= -1
+    rho = np.outer(psi, psi.conj())
     params = {"local_rot": False}
     if apply_local_rotation and rng.random() < 0.5:
         us = [_random_local_unitary(rng) for _ in range(3)]

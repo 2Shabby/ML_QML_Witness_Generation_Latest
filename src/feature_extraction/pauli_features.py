@@ -9,11 +9,8 @@ Feature vector: x_ρ = (r₁, r₂, ..., r_{d²-1}) where rₖ = Tr(ρ Pₖ)
 """
 
 import numpy as np
-from qiskit.quantum_info import DensityMatrix, PauliList
+from qiskit.quantum_info import PauliList
 from typing import List, Optional
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 def get_pauli_basis(n_qubits: int, include_identity: bool = False) -> PauliList:
@@ -49,89 +46,6 @@ def get_pauli_basis(n_qubits: int, include_identity: bool = False) -> PauliList:
         pauli_labels.append(label)
 
     return PauliList(pauli_labels)
-
-
-def extract_pauli_features(
-    rho: DensityMatrix,
-    pauli_basis: Optional[PauliList] = None
-) -> np.ndarray:
-    """
-    Extract Pauli feature vector from a density matrix.
-
-    Following Section 3.1.2: x_ρ = (Tr(ρ P₁), Tr(ρ P₂), ..., Tr(ρ P_{N}))
-
-    The expectation values Tr(ρ P_k) are real and in the range [-1, 1].
-
-    Args:
-        rho: Density matrix to extract features from
-        pauli_basis: Pauli basis to use (if None, generated automatically)
-    Returns:
-        Feature vector as numpy array
-    """
-    # Get number of qubits from density matrix dimension
-    dim = rho.dim
-    n_qubits = int(np.log2(dim))
-
-    if pauli_basis is None:
-        pauli_basis = get_pauli_basis(n_qubits, include_identity=False)
-
-    features = []
-
-    for pauli in pauli_basis:
-        # Compute expectation value: Tr(ρ P)
-        # Pauli matrices have eigenvalues ±1, so expectation is in [-1, 1]
-        expectation = np.trace(rho.data @ pauli.to_matrix()).real
-        features.append(expectation)
-
-    return np.array(features, dtype=np.float64)
-
-
-def extract_features_batch(
-    states: List[DensityMatrix],
-    pauli_basis: Optional[PauliList] = None,
-    verbose: bool = True
-) -> np.ndarray:
-    """
-    Extract Pauli features from a batch of states.
-
-    Following Section 10.6 data pipeline approach.
-
-    Args:
-        states: List of density matrices
-        pauli_basis: Pauli basis to use (computed once, reused for all)
-        verbose: Whether to log progress
-
-    Returns:
-        Feature matrix of shape (n_samples, n_features)
-    """
-    if len(states) == 0:
-        raise ValueError("states list is empty")
-
-    # Get basis from first state if not provided
-    if pauli_basis is None:
-        dim = states[0].dim
-        n_qubits = int(np.log2(dim))
-        pauli_basis = get_pauli_basis(n_qubits, include_identity=False)
-
-    if verbose:
-        logger.info(f"Extracting features from {len(states)} states...")
-        logger.info(f"Feature dimension: {len(pauli_basis)}")
-
-    features_list = []
-
-    for i, state in enumerate(states):
-        if verbose and (i + 1) % 100 == 0:
-            logger.info(f"Processed {i + 1}/{len(states)} states")
-
-        features = extract_pauli_features(state, pauli_basis)
-        features_list.append(features)
-
-    feature_matrix = np.array(features_list)
-
-    if verbose:
-        logger.info(f"Feature extraction complete. Shape: {feature_matrix.shape}")
-
-    return feature_matrix
 
 
 def create_sparse_measurement_set(

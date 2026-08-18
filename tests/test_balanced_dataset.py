@@ -3,7 +3,7 @@ Unit tests for the confound-resistant balanced boundary-mixture generator.
 
 Covers basic correctness only (validity, reproducibility, label balance,
 oracle consistency, boundary bisection); anti-shortcut statistics are
-covered by ``scripts/validate_dataset_confound.py``.
+produced by the sanity controls in ``scripts/run_clean_dataset_experiments.py``.
 """
 
 import numpy as np

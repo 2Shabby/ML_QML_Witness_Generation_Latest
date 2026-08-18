@@ -5,14 +5,11 @@ Unit tests for feature extraction module.
 import numpy as np
 from qiskit.quantum_info import PauliList
 
-from src.quantum_states.state_generation import generate_bell_state, generate_separable_state
 from src.feature_extraction.pauli_features import (
     get_pauli_basis,
-    extract_pauli_features,
-    extract_features_batch,
     create_sparse_measurement_set,
     group_commuting_paulis,
-    estimate_measurement_cost
+    estimate_measurement_cost,
 )
 
 
@@ -30,34 +27,6 @@ class TestFeatureExtraction:
         # With identity
         basis_with_id = get_pauli_basis(n_qubits, include_identity=True)
         assert len(basis_with_id) == 4**n_qubits  # 16 for 2 qubits
-
-    def test_extract_pauli_features(self):
-        """Test Pauli feature extraction."""
-        n_qubits = 2
-        rho = generate_bell_state(bell_type=0)
-        basis = get_pauli_basis(n_qubits, include_identity=False)
-
-        features = extract_pauli_features(rho, basis)
-
-        # Check feature vector size
-        assert len(features) == len(basis)
-        assert features.dtype == np.float64
-
-        # Features should be real numbers in [-1, 1] range (approximately)
-        assert np.all(np.abs(features) <= 1.5)  # Allow some numerical error
-
-    def test_features_batch(self):
-        """Test batch feature extraction."""
-        n_qubits = 2
-        n_states = 10
-
-        states = [generate_bell_state(i % 4) for i in range(n_states)]
-        basis = get_pauli_basis(n_qubits, include_identity=False)
-
-        features = extract_features_batch(states, basis, verbose=False)
-
-        # Check shape
-        assert features.shape == (n_states, len(basis))
 
     def test_sparse_measurement_sets(self):
         """Test sparse measurement set creation."""
@@ -120,22 +89,3 @@ class TestFeatureExtraction:
         pauli_list = PauliList(['XI', 'ZI', 'IX'])
         cost = estimate_measurement_cost(pauli_list)
         assert cost == 2  # XI-ZI don't commute, but IX commutes with ZI
-
-    def test_feature_extraction_properties(self):
-        """Test mathematical properties of feature extraction."""
-        n_qubits = 2
-        basis = get_pauli_basis(n_qubits, include_identity=False)
-
-        # Test on separable state
-        rho_sep = generate_separable_state(n_qubits, seed=42)
-        features_sep = extract_pauli_features(rho_sep, basis)
-
-        # Test on Bell state
-        rho_bell = generate_bell_state(bell_type=0)
-        features_bell = extract_pauli_features(rho_bell, basis)
-
-        # Features should be different
-        assert not np.allclose(features_sep, features_bell)
-
-        # Both should have same dimension
-        assert len(features_sep) == len(features_bell)

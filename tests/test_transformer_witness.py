@@ -349,17 +349,24 @@ class TestTransformerWitnessLearner:
 class TestTransformerIntegration:
     """Integration tests with quantum state data."""
 
+    @staticmethod
+    def _quantum_features(n_samples=200, seed=42):
+        from src.quantum_states.balanced_dataset import (
+            generate_balanced_distillability_dataset,
+        )
+
+        states, labels, _ = generate_balanced_distillability_dataset(
+            n_samples=n_samples, seed=seed
+        )
+        basis = create_sparse_measurement_set(3, 'two_body')
+        M = np.asarray(basis.to_matrix(), dtype=np.complex128)
+        R = np.stack([np.asarray(s.data, dtype=np.complex128) for s in states])
+        features = np.einsum("kij,bji->bk", M, R).real
+        return basis, features, np.asarray(labels)
+
     def test_with_quantum_features(self):
         """Test with actual quantum state features."""
-        from src.quantum_states.state_generation import generate_distillability_dataset
-        from src.feature_extraction.pauli_features import extract_features_batch
-
-        # Generate small dataset
-        states, labels = generate_distillability_dataset(n_samples=100, seed=42)
-        labels = np.array(labels)
-
-        basis = create_sparse_measurement_set(3, 'two_body')
-        features = extract_features_batch(states, basis, verbose=False)
+        basis, features, labels = self._quantum_features()
 
         # Train hybrid transformer
         learner = TransformerWitnessLearner(
@@ -384,16 +391,10 @@ class TestTransformerIntegration:
 
     def test_comparable_to_svm(self):
         """Test that transformer is comparable to SVM on quantum data."""
-        from src.quantum_states.state_generation import generate_distillability_dataset
-        from src.feature_extraction.pauli_features import extract_features_batch
         from src.ml_models.svm_witness import SVMWitnessLearner
 
         # Generate dataset
-        states, labels = generate_distillability_dataset(n_samples=200, seed=42)
-        labels = np.array(labels)
-
-        basis = create_sparse_measurement_set(3, 'two_body')
-        features = extract_features_batch(states, basis, verbose=False)
+        basis, features, labels = self._quantum_features(n_samples=200)
 
         # Train SVM
         svm_learner = SVMWitnessLearner(

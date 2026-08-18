@@ -1,103 +1,30 @@
 """Machine learning models for witness learning."""
 
 from .svm_witness import SVMWitnessLearner
-
-# Conditionally import transformer models (requires PyTorch)
-try:
-    from .transformer_witness import (
-        TransformerWitnessLearner,
-        TransformerClassifier,
-        HybridTransformerWitness
-    )
-    _TRANSFORMER_AVAILABLE = True
-except ImportError:
-    _TRANSFORMER_AVAILABLE = False
-    TransformerWitnessLearner = None
-    TransformerClassifier = None
-    HybridTransformerWitness = None
-
-# Conditionally import MLP classifier (requires PyTorch)
-try:
-    from .mlp_classifier import MLPClassifierLearner, MLPDiscriminator
-    _MLP_AVAILABLE = True
-except ImportError:
-    _MLP_AVAILABLE = False
-    MLPClassifierLearner = None
-    MLPDiscriminator = None
-
-# Conditionally import variational POVM (requires PyTorch)
-try:
-    from .variational_povm import (
-        VariationalPOVMLearner,
-        VariationalPOVMClassifier,
-        ParameterizedUnitary,
-    )
-    _POVM_AVAILABLE = True
-except ImportError:
-    _POVM_AVAILABLE = False
-    VariationalPOVMLearner = None
-    VariationalPOVMClassifier = None
-    ParameterizedUnitary = None
-
-# Conditionally import amplitude-encoded QML (requires PyTorch and PennyLane)
-try:
-    from .amplitude_qml import (
-        AmplitudeEncodedQMLClassifier,
-        AmplitudeQMLClassifierLearner,
-    )
-    _AMPLITUDE_QML_AVAILABLE = True
-except ImportError:
-    _AMPLITUDE_QML_AVAILABLE = False
-    AmplitudeEncodedQMLClassifier = None
-    AmplitudeQMLClassifierLearner = None
-
-# Conditionally import direct-state QML (requires PyTorch and PennyLane)
-try:
-    from .direct_state_qml import (
-        DirectStateQMLClassifier,
-        DirectStateQMLClassifierLearner,
-    )
-    _DIRECT_STATE_QML_AVAILABLE = True
-except ImportError:
-    _DIRECT_STATE_QML_AVAILABLE = False
-    DirectStateQMLClassifier = None
-    DirectStateQMLClassifierLearner = None
+from .transformer_witness import (
+    TransformerWitnessLearner,
+    TransformerClassifier,
+    HybridTransformerWitness,
+)
+from .mlp_classifier import MLPClassifierLearner, MLPDiscriminator
+from .amplitude_qml import (
+    AmplitudeEncodedQMLClassifier,
+    AmplitudeQMLClassifierLearner,
+)
+from .direct_state_qml import (
+    DirectStateQMLClassifier,
+    DirectStateQMLClassifierLearner,
+)
 
 __all__ = [
     'SVMWitnessLearner',
+    'TransformerWitnessLearner',
+    'TransformerClassifier',
+    'HybridTransformerWitness',
+    'MLPClassifierLearner',
+    'MLPDiscriminator',
+    'AmplitudeEncodedQMLClassifier',
+    'AmplitudeQMLClassifierLearner',
+    'DirectStateQMLClassifier',
+    'DirectStateQMLClassifierLearner',
 ]
-
-# Add transformer models to __all__ if available
-if _TRANSFORMER_AVAILABLE:
-    __all__.extend([
-        'TransformerWitnessLearner',
-        'TransformerClassifier',
-        'HybridTransformerWitness',
-    ])
-
-# Add MLP models to __all__ if available
-if _MLP_AVAILABLE:
-    __all__.extend([
-        'MLPClassifierLearner',
-        'MLPDiscriminator',
-    ])
-
-# Add POVM models to __all__ if available
-if _POVM_AVAILABLE:
-    __all__.extend([
-        'VariationalPOVMLearner',
-        'VariationalPOVMClassifier',
-        'ParameterizedUnitary',
-    ])
-
-if _AMPLITUDE_QML_AVAILABLE:
-    __all__.extend([
-        'AmplitudeEncodedQMLClassifier',
-        'AmplitudeQMLClassifierLearner',
-    ])
-
-if _DIRECT_STATE_QML_AVAILABLE:
-    __all__.extend([
-        'DirectStateQMLClassifier',
-        'DirectStateQMLClassifierLearner',
-    ])

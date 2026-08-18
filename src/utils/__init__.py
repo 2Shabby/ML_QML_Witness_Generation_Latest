@@ -1,15 +1,13 @@
 """
 Utility functions for ML-QML Witness Generation.
 
-This module provides common utilities used across the project:
 - Random seed management for reproducibility
-- JSON serialization helpers
-- Logging setup utilities
+- Deterministic split-seed derivation
+- Reusable stratified train/test split indices
 """
 
 import random
-import logging
-from typing import Any, Optional
+from typing import Optional
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -49,84 +47,12 @@ def set_seed(seed: int, deterministic: bool = False) -> None:
             torch.backends.cudnn.benchmark = False
 
 
-def convert_to_json_serializable(obj: Any) -> Any:
-    """
-    Recursively convert numpy types to Python native types for JSON serialization.
-
-    Handles:
-    - numpy arrays -> lists
-    - numpy integers -> int
-    - numpy floats -> float
-    - numpy booleans -> bool
-    - Nested dicts and lists
-
-    Args:
-        obj: Object to convert
-
-    Returns:
-        JSON-serializable version of the object
-    """
-    if isinstance(obj, dict):
-        return {k: convert_to_json_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_to_json_serializable(v) for v in obj]
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, (np.integer, np.int64, np.int32)):
-        return int(obj)
-    elif isinstance(obj, (np.floating, np.float64, np.float32)):
-        return float(obj)
-    elif isinstance(obj, np.bool_):
-        return bool(obj)
-    else:
-        return obj
-
-
-def setup_logging(
-    level: int = logging.INFO,
-    format_string: Optional[str] = None,
-    logger_name: Optional[str] = None
-) -> logging.Logger:
-    """
-    Set up logging configuration.
-
-    Args:
-        level: Logging level (e.g., logging.INFO, logging.DEBUG)
-        format_string: Custom format string. If None, uses default format.
-        logger_name: Name for the logger. If None, configures root logger.
-
-    Returns:
-        Configured logger instance
-    """
-    from ..config import DEFAULT_LOG_FORMAT
-
-    if format_string is None:
-        format_string = DEFAULT_LOG_FORMAT
-
-    if logger_name is None:
-        # Configure root logger
-        logging.basicConfig(level=level, format=format_string)
-        return logging.getLogger()
-    else:
-        # Configure named logger
-        logger = logging.getLogger(logger_name)
-        logger.setLevel(level)
-
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            handler.setLevel(level)
-            handler.setFormatter(logging.Formatter(format_string))
-            logger.addHandler(handler)
-
-        return logger
-
-
 def get_split_seed(base_seed: Optional[int], offset: int = 1000) -> Optional[int]:
     """
     Get a derived seed for data splitting to avoid correlation with model seed.
 
-    This pattern is used consistently across SVM and Transformer learners
-    to ensure reproducible but independent data splits.
+    This pattern is used consistently across the learners to ensure
+    reproducible but independent data splits.
 
     Args:
         base_seed: The base random seed (can be None)
@@ -157,8 +83,6 @@ def stratified_split_indices(
 
 __all__ = [
     'set_seed',
-    'convert_to_json_serializable',
-    'setup_logging',
     'get_split_seed',
     'stratified_split_indices',
     'TORCH_AVAILABLE',

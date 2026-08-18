@@ -128,6 +128,26 @@ Implementation steps 1–4 are complete: amplitude QML, its three classical norm
 2. Repeat 36D-vs-63D ablations for nonlinear models.
 3. Run the controlled and direct-state QML experiments at report scale and freeze final baselines only after the implementation stabilizes.
 
+## CLEANUP_2026_08_18_LOC_REDUCTION
+
+**Status:** COMPLETE
+**Question:** Reduce repository LoC by removing dead code, superseded scripts, and unused modules without changing live functionality.
+**Scope removed (9,061 -> 5,017 Python LoC, -44.6%):**
+
+- Scripts: `run_manuscript_experiments.py` (466), `run_36d_baseline_classifiers.py` (218), `run_amplitude_qml_comparison.py` (201), `validate_dataset_confound.py` (350) - all superseded by `run_clean_dataset_experiments.py`; their frozen result artifacts (`results/manuscript/`, `results/baseline_36d/`, `results/amplitude_qml_36d/`, `results/dataset_audit/`) deleted as superseded history.
+- Modules: `src/ml_models/variational_povm.py` (577) and `src/quantum_states/distillability_oracles.py` (352) - not referenced by any live pipeline; `DPSOracle` was documented as not used for labeling.
+- Tests: `test_variational_povm.py` (327), `test_dps_oracle.py` (290) removed; `test_state_generation.py` 339 -> 118 (PT/NPT machinery only); `test_feature_extraction.py` 141 -> 91; `test_integration.py` 103 -> 73, rewritten on the balanced generator; MLP/transformer integration tests migrated from the legacy 5-family generator to `generate_balanced_distillability_dataset`.
+- In-module trims: `state_generation.py` 631 -> 108 (only `partial_transpose`, `_permute_qubits`, `check_npt_any_bipartition` remain; the legacy 5-family generator - source of the family/label shortcut - is gone); `config.py` 248 -> 72 (only `TransformerConfig` + log format are consumed); `src/utils` 165 -> 89 (`convert_to_json_serializable`, `setup_logging` removed); `pauli_features.py` 267 -> 181 (single-state/batch extractors removed); package `__init__` files de-scaffolded.
+
+**Functional gates (post-cleanup, same checkout):**
+
+- `env/rocm/bin/python -m pytest -q`: 71 passed (was 124; 53 removed with dead modules or dead legacy-generator coverage, remainder retained or migrated to the balanced generator).
+- `python3 -m compileall -q src scripts tests`: OK; package imports OK.
+- `python -m scripts.run_clean_dataset_experiments --smoke`: end-to-end OK on ROCm (artifacts are smoke-only, not evidence).
+- The inlined cluster-state construction in `balanced_dataset._npt_cluster` was verified **bit-identical** to the removed `generate_noisy_cluster_state(n_qubits=3, noise_level=0.0)`, so dataset hashes are unchanged.
+
+**Interpretation:** no experiment logic, architecture, or hyperparameter changed; the pending seeds 2026-2030 clean-dataset run will be re-run end to end on this reduced tree (the pre-cleanup run aborted on a ROCm GPU hang at seed 2030), so all artifact numbers will be regenerated on the new commit.
+
 ## Entry template
 
 ```text
@@ -151,7 +171,7 @@ ARTIFACTS:
 
 ## EXPERIMENT_2026_08_17_UNIFIED_VALIDATION
 
-**Status:** COMPLETE; manuscript-usable artifact generated, scientific caveats required.
+**Status:** SUPERSEDED (2026-08-18): its artifacts (`results/manuscript/`) were deleted in CLEANUP_2026_08_18; the numbers below are historical record only and must not be mixed with the pending clean-dataset artifact.
 
 - **Code identity:** base commit `14aa6da91c7fe44b35a2eb0ae28fac88a99fe6aa`; exact dirty-tree Python source SHA-256 `6b60f0caead06f913a97f712fc1f0e38e45241ea12ad8637867e8c3671a0c23d`.
 - **Environment:** Python 3.12.13, NumPy 2.5.2, scikit-learn 1.9.0, PyTorch 2.12.1+rocm7.2, ROCm 7.2.53211, Radeon RX 7800 XT.

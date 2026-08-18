@@ -2,7 +2,7 @@
 
 **Status:** Live code inventory
 
-**Last audited:** 2026-08-17
+**Last audited:** 2026-08-18
 
 **Research direction:** [three_qubit_distillability_research_context.md](three_qubit_distillability_research_context.md)
 
@@ -12,148 +12,93 @@ This document describes what exists in the current checkout. It intentionally se
 
 ## Summary
 
-The repository implements the original three-qubit classical pipeline, several nonlinear extensions, a reusable six-qubit amplitude-encoded QML classifier with controlled classical comparisons, and a separate PennyLane direct-state classifier. Final report-scale validation and baseline reproduction remain deferred until the implementation stabilizes.
+The repository implements the confound-resistant balanced dataset generator, the restricted 36D / full 63D Pauli feature machinery, the classical comparators (linear SVM, MLP, transformer), a reusable six-qubit amplitude-encoded QML classifier, a separate PennyLane direct-state classifier, and one consolidated result-generation entry point. On 2026-08-18 the checkout was reduced by 44.6% (9,061 → 5,017 Python LoC): the legacy 5-family generator, superseded experiment scripts, the unused variational-POVM and oracle modules, and their tests were removed (see `EXPERIMENT_LOG.md`, entry `CLEANUP_2026_08_18`).
 
 | Area | Current state |
 |---|---|
-| Three-qubit state generation | Implemented |
+| Balanced boundary-mixture dataset generator | Implemented (frozen; seeds 2026-2030) |
 | NPT labeling across three bipartitions | Implemented |
-| Restricted 36D Pauli features | Implemented |
+| Restricted 36D and full 63D Pauli features | Implemented |
 | Linear SVM witness | Implemented |
 | MLP classifier | Implemented |
-| Transformer classifiers | Implemented |
-| Variational density-matrix POVM | Implemented in PyTorch |
-| Noise and supplementary classifier scripts | Implemented |
-| DPS separability helper | Implemented, with important limitations below |
+| Transformer classifiers (standard + hybrid) | Implemented |
+| Amplitude-encoded QML (PennyLane, 6 qubits) | Implemented and ROCm-verified |
+| Classical amplitude-encoding controls (raw / L2 / L2+norm) | Implemented |
+| Direct-state QML (PennyLane, 3-qubit density matrix) | Implemented and ROCm-verified |
 | Local Python 3.12 / ROCm research environment | Installed and GPU-verified |
-| PennyLane amplitude-encoded classifier | Implemented and ROCm-verified |
-| Classical amplitude-encoding controls | Raw, L2-normalized, and normalized-plus-norm inputs implemented |
-| Identical-split QML/MLP comparison | Implemented and smoke-verified on ROCm |
-| PennyLane direct-state QML | Implemented and ROCm smoke-verified |
-| Unified result artifacts | Generated under `results/manuscript/`; awaiting final review/commit |
+| Consolidated clean-dataset experiment runner | Implemented; first full run in progress |
 
 ## Active implementation plan
 
 | Step | Status | Scope |
 |---:|---|---|
-| 1 | Complete | Six-qubit amplitude-encoded QML classifier for the restricted 36D input |
-| 2 | Complete | Raw, L2-normalized, and L2-normalized-plus-original-norm MLP controls |
-| 3 | Complete | All four models evaluated through one reusable stratified split contract |
-| 4 | Complete | PennyLane circuit that accepts the three-qubit density matrix directly, kept separate from the restricted-measurement experiment |
-| 5 | Deferred | Report-scale runs, baseline reproduction, and frozen result/split artifacts after the implementation stabilizes |
+| 1 | Complete | Confound-resistant balanced dataset generator |
+| 2 | Complete | Amplitude QML, classical normalization controls, direct-state QML |
+| 3 | Complete | One consolidated runner (`scripts/run_clean_dataset_experiments.py`) with the deterministic 64/16/20 split for seeds 2026-2030 |
+| 4 | In progress | Full clean-dataset run: seeds 2026-2029 completed once on the pre-cleanup tree; the run must be re-run end to end post-cleanup (a GPU hang aborted the previous run on seed 2030) |
+| 5 | Deferred | Report-scale claims review after the consolidated artifact exists |
 
-The existing PyTorch variational POVM and the new PennyLane direct-state classifier are separate implementations. The latter uses PennyLane to construct a trainable circuit unitary and applies it to batched density matrices on ROCm.
+## Checkout verification (2026-08-18, post-cleanup)
 
-## Checkout verification
-
-The following statements were checked directly on 2026-08-17:
-
-- 30 Python files are present under the repository.
-- Ten test modules define 124 focused test functions.
+- 18 Python files under `src`/`scripts` (5,017 LoC total across `src`/`scripts`/`tests`).
+- Nine test modules define 71 test functions; `env/rocm/bin/python -m pytest -q` reports 71 passed.
 - `python3 -m compileall -q src scripts tests` succeeds.
-- The ignored local environment `env/rocm` provides Python 3.12, PyTorch 2.12.1 + ROCm 7.2, PennyLane 0.45.1, CVXPY 1.9.2, and the declared project dependencies.
-- PyTorch detects the Radeon RX 7800 XT (`gfx1101`) through ROCm and successfully executes GPU tensor operations.
-- `env/rocm/bin/python -m pytest -q` reports 124 passed and five warnings.
-- `MLPDiscriminator` uses standard batch-normalization behavior for ordinary batches and running statistics for a singleton training batch, preventing the former `BatchNorm1d` exception while retaining gradient flow.
-- The amplitude-QML learner completed batched optimizer steps and the CLI completed state generation, 36D extraction, training, prediction, split capture, and JSON serialization on ROCm. These are implementation checks, not research results.
-- The controlled-comparison CLI completed a deliberately undersized ROCm smoke run across the three MLP controls and amplitude QML using one shared split. Its metrics are not research evidence.
-- The direct-state CLI completed a deliberately undersized, one-epoch ROCm smoke run from generated density matrices through training and JSON serialization. Its metrics are not research evidence.
-- The unified JSON and CSV artifacts now contain exact dataset hashes, split indices, source hash, environment versions, and scalar metrics.
+- The `--smoke` mode of the clean-dataset runner completed end to end on ROCm (state generation → features → all classical models → amplitude QML → direct-state QML → JSON). Smoke metrics are not research evidence.
 
 Test counts by module:
 
 | Module | Test functions |
 |---|---:|
 | `test_amplitude_qml.py` | 5 |
+| `test_balanced_dataset.py` | 5 |
 | `test_controlled_comparison.py` | 3 |
 | `test_direct_state_qml.py` | 3 |
-| `test_dps_oracle.py` | 21 |
-| `test_feature_extraction.py` | 7 |
-| `test_integration.py` | 4 |
+| `test_feature_extraction.py` | 4 |
+| `test_integration.py` | 2 |
 | `test_mlp_classifier.py` | 22 |
-| `test_state_generation.py` | 22 |
+| `test_state_generation.py` | 9 |
 | `test_transformer_witness.py` | 18 |
-| `test_variational_povm.py` | 19 |
-| **Total** | **124** |
-
-The current checkout result is 124/124 tests passing.
+| **Total** | **71** |
 
 ## Implemented modules
 
 ### Configuration
 
-`src/config.py` defines defaults for:
-
-- Dataset size, noise range, seeds, and cross-validation.
-- Linear SVM parameters.
-- Transformer architecture and training.
-- MLP architecture and training.
-- Variational POVM architecture and training.
-- Six-qubit amplitude-QML architecture and training.
-- Three-qubit direct-state QML architecture and training.
-- Feature selection, witness sparsification, logging, and paths.
+`src/config.py` holds only what live code consumes: `TransformerConfig` (architecture + training defaults) and `DEFAULT_LOG_FORMAT`. The MLP, SVM, and QML learners keep their hyperparameters as constructor defaults; the experiment runner records exact settings in its JSON artifact.
 
 ### State generation and labels
 
-`src/quantum_states/state_generation.py` provides:
+`src/quantum_states/balanced_dataset.py` generates the confound-resistant dataset: boundary-crossing mixtures `rho(q) = q * rho_NPT + (1-q) * rho_PPT` with `q` sampled around the pair's PPT/NPT boundary `q*` (bisection). Families: generalized GHZ, generalized W, cluster, Haar-random pure (NPT anchors) mixed with non-product classically-correlated PPT anchors. Both labels occur in every family.
 
-- Random density matrices.
-- GHZ, W, Bell, Werner, and cluster states.
-- Three-qubit product states.
-- Depolarized state families and the five-family dataset generator.
-- Partial transpose and NPT checks over `A|BC`, `B|AC`, and `C|AB`.
-
-The current manuscript's answer key is the NPT rule: a state is labeled positive when at least one bipartition has a negative partial-transpose eigenvalue.
-
-`src/quantum_states/distillability_oracles.py` provides `NPTOracle`, `PPTOracle`, and `DPSOracle`. Important qualification: `DPSOracle.is_distillable()` currently returns the NPT result and classifies every all-PPT state as non-distillable. The Level-2 symmetric-extension routine is exposed through `check_separability()`; it is not used to create a more refined binary distillability label. The implementation also documents a real-matrix simplification in its SDP construction. It should therefore not be described as rigorous general ground truth without further validation.
+`src/quantum_states/state_generation.py` keeps only the label-oracle primitives: `partial_transpose`, `_permute_qubits`, and `check_npt_any_bipartition` (the NPT answer key: positive if any of `A|BC`, `B|AC`, `C|AB` has a negative partial-transpose eigenvalue).
 
 ### Restricted measurements
 
-`src/feature_extraction/pauli_features.py` provides full Pauli bases, feature extraction, the 36D one- and two-body subset, commuting grouping, and measurement-cost estimation.
-
-`src/feature_extraction/preprocessing.py` provides the three amplitude-encoding controls: raw 36D features, row-wise L2-normalized 36D features, and normalized features with the discarded norm appended as feature 37.
+`src/feature_extraction/pauli_features.py` provides the full Pauli basis, the 36D one-/two-body measurement set, commuting grouping, and measurement-cost estimation. `src/feature_extraction/preprocessing.py` provides the raw, L2-normalized, and normalized-plus-norm amplitude-encoding controls.
 
 ### Models
 
-`src/ml_models/svm_witness.py` implements a linear SVM and conversion of its fixed coefficient vector into a `SparsePauliOp`.
-
-`src/ml_models/mlp_classifier.py` implements the `36 -> 128 -> 64 -> 32 -> 2` PyTorch classifier with batch normalization, LeakyReLU, and dropout.
-
-`src/ml_models/transformer_witness.py` implements:
-
-- A standard nonlinear transformer classifier.
-- A hybrid model that produces state-dependent weights.
-- Training, inference, persistence, and analysis helpers.
-
-The hybrid output is state-adaptive and should not be conflated with one fixed linear witness operator.
-
-`src/ml_models/variational_povm.py` implements a PyTorch parameterized unitary and learned two-outcome measurement operating on density matrices. This is a simulated variational POVM, not a PennyLane circuit and not an amplitude-encoding implementation.
-
-`src/ml_models/amplitude_qml.py` implements 36D-to-64D zero-padded amplitude embedding on six qubits, `StronglyEntanglingLayers`, two Pauli-Z output logits, batched training, early stopping, prediction, persistence, and explicit split capture. Zero-norm vectors are rejected because they cannot define an amplitude-encoded state.
-
-`src/ml_models/direct_state_qml.py` accepts batched three-qubit density matrices directly. PennyLane constructs the trainable `StronglyEntanglingLayers` unitary; PyTorch applies `U rho U†` on ROCm and evaluates two Pauli-Z logits. This avoids the 36-feature measurement stage but assumes the density matrix can be supplied in simulation.
-
-`src/ml_models/qml_training.py` contains the shared split, optimization, inference, metrics, and persistence behavior used by both PennyLane classifiers.
+- `src/ml_models/svm_witness.py`: linear SVM with witness → `SparsePauliOp` conversion.
+- `src/ml_models/mlp_classifier.py`: `in -> 128 -> 64 -> 32 -> 2` PyTorch classifier (batch norm, LeakyReLU, dropout), with validation early stopping.
+- `src/ml_models/transformer_witness.py`: standard and hybrid (state-dependent weights) transformer classifiers with training, inference, persistence, and witness/attention analysis helpers.
+- `src/ml_models/amplitude_qml.py`: 36D-to-64D zero-padded amplitude embedding on six qubits, `StronglyEntanglingLayers`, two Pauli-Z logits, batched training with early stopping.
+- `src/ml_models/direct_state_qml.py`: PennyLane unitary applied directly to batched three-qubit density matrices on ROCm. Separate from the restricted-measurement experiment.
+- `src/ml_models/qml_training.py`: shared split, optimization, inference, metrics, and persistence for both PennyLane classifiers.
 
 ### Experiment pipeline
 
-`scripts/run_manuscript_experiments.py` is the sole result-generation entry point. Its classical stage records dataset leakage checks, family-only shortcuts, family-held-out evaluation, paired 36D-vs-63D nonlinear ablations, connected-correlator controls, and boundary generalization. Its QML stage evaluates the three normalization controls, amplitude QML, and direct-state QML on one split. It emits one detailed JSON artifact and one derived metrics CSV; it does not generate LaTeX.
+`scripts/run_clean_dataset_experiments.py` is the sole result-generation entry point. Per seed (2026-2030) it runs: sanity/shortcut controls (family balance, family-only, norm-only, purity diagnostic, shallow tree); 36D linear SVM, MLP, standard + hybrid transformer; 36D-vs-63D ablation for SVM and MLP (n=5 seed-level paired differences, descriptive); amplitude QML vs matched L2-normalized MLP; and direct-state QML vs the 63D full-state-information MLP. All models share one deterministic stratified 64/16/20 split (split seed 0); models without early stopping ignore the validation set. It emits one consolidated JSON with per-seed results, mean/std, per-family accuracy, protocol, model settings, and provenance.
 
 ## Known documentation and reproducibility gaps
 
-1. The unified artifacts are generated locally but are not yet committed as the reviewed baseline.
-2. Several historical values differ: SVM accuracy appears as 85.3%, 85.6%, and 86.3% for different analyses or summaries.
-3. Shared split indices and paired test predictions are emitted by the controlled comparison, but no report-scale split artifact has been frozen yet.
-4. CVXPY remains outside the general `requirements.txt`, but it is included in the machine-specific `requirements-rocm.lock` used by the audited environment.
-5. The near-perfect nonlinear results are now shown to be confounded by family identity: every negative standard-dataset example is a product state.
-6. Classical boundary evaluation and three-seed QML comparison are complete, but broader generators with negatives in multiple families remain necessary.
-7. The direct-state classifier does not establish a practical mixed-state preparation protocol.
+1. The consolidated clean-dataset artifact does not exist yet; the previous full run aborted on a ROCm GPU hang (seed 2030, amplitude QML stage) and is being re-run.
+2. Historical manuscript numbers (see `EXPERIMENT_LOG.md`) are superseded by the pending clean-dataset artifact and must not be mixed with it.
+3. CVXPY is no longer a project dependency after the oracle module removal.
 
 ## Current research priorities
 
-1. Scientifically review and commit the unified result artifacts.
-2. Redesign the dataset so negative labels occur in multiple state families, then repeat the same unified pipeline.
-3. Treat quantum-advantage and robust-classification claims as unsupported until that distribution-shift test succeeds.
+1. Complete the clean-dataset run (all five seeds) and commit the consolidated JSON as the canonical artifact.
+2. Treat quantum-advantage and robust-classification claims as unsupported until that artifact is reviewed.
 
 ## Status discipline
 
