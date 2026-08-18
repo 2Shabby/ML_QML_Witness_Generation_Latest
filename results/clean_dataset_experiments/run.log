@@ -1,0 +1,50 @@
+(null): No such file or directory
+[seed 2026] generated 4000 states in 3.8s, features in 3.9s; train/val/test = 2560/640/800
+(null): No such file or directory
+[seed 2026] transformer mode=classifier
+[seed 2026] transformer classifier done in 5.7s (28 epochs)
+[seed 2026] transformer mode=hybrid
+[seed 2026] transformer hybrid done in 7.8s (37 epochs)
+[seed 2026] L2 MLP control
+[seed 2026] amplitude QML
+[seed 2026] amplitude QML done in 89.5s
+[seed 2026] direct-state QML
+[seed 2026] direct-state QML done in 18.2s
+[seed 2027] generated 4000 states in 3.8s, features in 3.9s; train/val/test = 2560/640/800
+[seed 2027] transformer mode=classifier
+[seed 2027] transformer classifier done in 6.7s (32 epochs)
+[seed 2027] transformer mode=hybrid
+[seed 2027] transformer hybrid done in 21.1s (100 epochs)
+[seed 2027] L2 MLP control
+[seed 2027] amplitude QML
+[seed 2027] amplitude QML done in 61.5s
+[seed 2027] direct-state QML
+[seed 2027] direct-state QML done in 51.2s
+[seed 2028] generated 4000 states in 3.8s, features in 3.8s; train/val/test = 2560/640/800
+[seed 2028] transformer mode=classifier
+[seed 2028] transformer classifier done in 14.3s (70 epochs)
+[seed 2028] transformer mode=hybrid
+[seed 2028] transformer hybrid done in 14.7s (69 epochs)
+[seed 2028] L2 MLP control
+[seed 2028] amplitude QML
+[seed 2028] amplitude QML done in 138.5s
+[seed 2028] direct-state QML
+[seed 2028] direct-state QML done in 25.8s
+[seed 2029] generated 4000 states in 3.9s, features in 3.9s; train/val/test = 2560/640/800
+[seed 2029] transformer mode=classifier
+[seed 2029] transformer classifier done in 2.4s (12 epochs)
+[seed 2029] transformer mode=hybrid
+[seed 2029] transformer hybrid done in 14.8s (72 epochs)
+[seed 2029] L2 MLP control
+[seed 2029] amplitude QML
+[seed 2029] amplitude QML done in 58.6s
+[seed 2029] direct-state QML
+[seed 2029] direct-state QML done in 67.4s
+[seed 2030] generated 4000 states in 3.8s, features in 3.8s; train/val/test = 2560/640/800
+[seed 2030] transformer mode=classifier
+[seed 2030] transformer classifier done in 18.6s (92 epochs)
+[seed 2030] transformer mode=hybrid
+[seed 2030] transformer hybrid done in 17.4s (82 epochs)
+[seed 2030] L2 MLP control
+[seed 2030] amplitude QML
+HW Exception by GPU node-1 (Agent handle: 0x21974680) reason :GPU Hang
